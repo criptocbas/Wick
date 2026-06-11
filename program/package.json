@@ -1,0 +1,24 @@
+{
+  "name": "wick-program",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.test.ts"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^1.0.2",
+    "@magicblock-labs/ephemeral-rollups-sdk": "^0.15.3",
+    "@solana/spl-token": "^0.4.13",
+    "@solana/web3.js": "^1.98.2"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.3.0",
+    "@types/mocha": "^10.0.0",
+    "@types/node": "^24.0.0",
+    "chai": "^4.3.4",
+    "mocha": "^10.0.0",
+    "ts-mocha": "^10.0.0",
+    "typescript": "^5.6.0"
+  }
+}
