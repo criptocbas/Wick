@@ -94,11 +94,28 @@ describe("wick lifecycle", () => {
   /** Sends a tx to the ER, re-signed with the ER blockhash + ER fee payer. */
   async function sendER(tx: web3.Transaction): Promise<string> {
     tx.feePayer = providerER.wallet.publicKey;
-    tx.recentBlockhash = (
-      await providerER.connection.getLatestBlockhash()
-    ).blockhash;
+    const { blockhash, lastValidBlockHeight } =
+      await providerER.connection.getLatestBlockhash();
+    tx.recentBlockhash = blockhash;
     tx = await providerER.wallet.signTransaction(tx);
-    return providerER.sendAndConfirm(tx, [], { skipPreflight: true });
+    const sig = await providerER.connection.sendRawTransaction(tx.serialize(), {
+      skipPreflight: true,
+    });
+    const conf = await providerER.connection.confirmTransaction(
+      { signature: sig, blockhash, lastValidBlockHeight },
+      "confirmed"
+    );
+    if (conf.value.err) {
+      const txInfo = await providerER.connection.getTransaction(sig, {
+        commitment: "confirmed",
+        maxSupportedTransactionVersion: 0,
+      });
+      throw new Error(
+        `ER tx ${sig} failed: ${JSON.stringify(conf.value.err)}\n` +
+          (txInfo?.meta?.logMessages ?? []).join("\n")
+      );
+    }
+    return sig;
   }
 
   async function pushPriceER(price: anchor.BN) {
@@ -155,7 +172,7 @@ describe("wick lifecycle", () => {
 
     await program.methods
       .createMarket(0, SYMBOL, FEED_KIND_WICK, feedPda)
-      .accounts({ admin: admin.publicKey })
+      .accounts({ admin: admin.publicKey, market: marketPda, book: bookPda })
       .rpc();
 
     await program.methods

@@ -6,6 +6,7 @@ target/
 *-keypair.json
 .anchor/
 test-ledger/
+magicblock-test-storage/
 .env
 .env.*
 !.env.example
