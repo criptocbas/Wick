@@ -1,0 +1,51 @@
+import { useStore } from "../state/store";
+import { fmtMoney } from "../util";
+
+export default function TopBar({ onSettle }: { onSettle: () => void }) {
+  const user = useStore((s) => s.user);
+  const latency = useStore((s) => s.lastLatency);
+  const soundOn = useStore((s) => s.soundOn);
+  const toggleSound = useStore((s) => s.toggleSound);
+  const busy = useStore((s) => s.busy);
+
+  return (
+    <header className="topbar">
+      <div className="wordmark" aria-label="Wick">
+        W<span className="tittle">ı</span>ck
+      </div>
+
+      <div className="latency-pill" title="last ephemeral rollup confirmation">
+        {latency != null ? (
+          <>
+            rollup <strong className="num">{latency}ms</strong>
+          </>
+        ) : (
+          "rollup ready"
+        )}
+      </div>
+
+      <div className="topbar-spacer" />
+
+      {user && user.streak > 1 && (
+        <div className="streak" title={`${user.streak} wins in a row`}>
+          <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden>
+            <path d="M16 3c1 5-7 9-7 16a7 7 0 0 0 14 0c0-3-1.5-5-2.5-7-1.6 2-2.5 2.4-2.5 2.4S20 8 16 3z" />
+          </svg>
+          <span className="num">{user.streak}</span>
+        </div>
+      )}
+
+      <div className="balance-block">
+        <div className="label">balance</div>
+        <div className="value num">{user ? fmtMoney(user.balance) : "—"}</div>
+      </div>
+
+      <button className="btn-quiet" onClick={toggleSound} aria-label="toggle sound">
+        {soundOn ? "Sound on" : "Muted"}
+      </button>
+      <button className="btn-quiet" onClick={onSettle} disabled={busy}>
+        Settle up
+      </button>
+    </header>
+  );
+}

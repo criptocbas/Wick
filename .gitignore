@@ -12,3 +12,4 @@ magicblock-test-storage/
 !.env.example
 *.log
 .DS_Store
+app/public/chain-config.json

@@ -1,0 +1,2533 @@
+{
+  "address": "9Ab2YXtmKwFgEsGGQFkL53E2rSwtnqFptKxRXfV8uaAX",
+  "metadata": {
+    "name": "wick",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Wick — ultra-short-dated options on MagicBlock Ephemeral Rollups, hedged on Flash Trade"
+  },
+  "instructions": [
+    {
+      "name": "commit_user",
+      "discriminator": [
+        166,
+        232,
+        213,
+        196,
+        139,
+        145,
+        160,
+        52
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "user_account",
+          "writable": true
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_feed",
+      "discriminator": [
+        173,
+        86,
+        95,
+        94,
+        13,
+        193,
+        67,
+        180
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "feed",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  101,
+                  101,
+                  100
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "symbol"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "symbol",
+          "type": {
+            "array": [
+              "u8",
+              12
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "create_market",
+      "discriminator": [
+        103,
+        226,
+        97,
+        235,
+        200,
+        188,
+        251,
+        254
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "book",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "idx",
+          "type": "u8"
+        },
+        {
+          "name": "symbol",
+          "type": {
+            "array": [
+              "u8",
+              12
+            ]
+          }
+        },
+        {
+          "name": "feed_kind",
+          "type": "u8"
+        },
+        {
+          "name": "feed",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "delegate_book",
+      "discriminator": [
+        175,
+        120,
+        231,
+        223,
+        36,
+        212,
+        159,
+        143
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "buffer_book",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                121,
+                82,
+                50,
+                91,
+                127,
+                149,
+                161,
+                115,
+                117,
+                217,
+                115,
+                164,
+                201,
+                27,
+                217,
+                150,
+                114,
+                132,
+                8,
+                4,
+                173,
+                12,
+                184,
+                151,
+                37,
+                188,
+                114,
+                252,
+                253,
+                42,
+                195,
+                92
+              ]
+            }
+          }
+        },
+        {
+          "name": "delegation_record_book",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "delegation_metadata_book",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  45,
+                  109,
+                  101,
+                  116,
+                  97,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "book",
+          "writable": true
+        },
+        {
+          "name": "owner_program",
+          "address": "9Ab2YXtmKwFgEsGGQFkL53E2rSwtnqFptKxRXfV8uaAX"
+        },
+        {
+          "name": "delegation_program",
+          "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "idx",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "delegate_feed",
+      "discriminator": [
+        60,
+        208,
+        248,
+        25,
+        136,
+        243,
+        106,
+        82
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "buffer_feed",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "feed"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                121,
+                82,
+                50,
+                91,
+                127,
+                149,
+                161,
+                115,
+                117,
+                217,
+                115,
+                164,
+                201,
+                27,
+                217,
+                150,
+                114,
+                132,
+                8,
+                4,
+                173,
+                12,
+                184,
+                151,
+                37,
+                188,
+                114,
+                252,
+                253,
+                42,
+                195,
+                92
+              ]
+            }
+          }
+        },
+        {
+          "name": "delegation_record_feed",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "feed"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "delegation_metadata_feed",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  45,
+                  109,
+                  101,
+                  116,
+                  97,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "feed"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "feed",
+          "writable": true
+        },
+        {
+          "name": "owner_program",
+          "address": "9Ab2YXtmKwFgEsGGQFkL53E2rSwtnqFptKxRXfV8uaAX"
+        },
+        {
+          "name": "delegation_program",
+          "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "symbol",
+          "type": {
+            "array": [
+              "u8",
+              12
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "delegate_house",
+      "discriminator": [
+        61,
+        85,
+        239,
+        69,
+        170,
+        196,
+        8,
+        215
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "buffer_house",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "house"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                121,
+                82,
+                50,
+                91,
+                127,
+                149,
+                161,
+                115,
+                117,
+                217,
+                115,
+                164,
+                201,
+                27,
+                217,
+                150,
+                114,
+                132,
+                8,
+                4,
+                173,
+                12,
+                184,
+                151,
+                37,
+                188,
+                114,
+                252,
+                253,
+                42,
+                195,
+                92
+              ]
+            }
+          }
+        },
+        {
+          "name": "delegation_record_house",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "house"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "delegation_metadata_house",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  45,
+                  109,
+                  101,
+                  116,
+                  97,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "house"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "house",
+          "writable": true
+        },
+        {
+          "name": "owner_program",
+          "address": "9Ab2YXtmKwFgEsGGQFkL53E2rSwtnqFptKxRXfV8uaAX"
+        },
+        {
+          "name": "delegation_program",
+          "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "delegate_user",
+      "discriminator": [
+        237,
+        220,
+        199,
+        24,
+        59,
+        41,
+        247,
+        24
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "buffer_user_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user_account"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                121,
+                82,
+                50,
+                91,
+                127,
+                149,
+                161,
+                115,
+                117,
+                217,
+                115,
+                164,
+                201,
+                27,
+                217,
+                150,
+                114,
+                132,
+                8,
+                4,
+                173,
+                12,
+                184,
+                151,
+                37,
+                188,
+                114,
+                252,
+                253,
+                42,
+                195,
+                92
+              ]
+            }
+          }
+        },
+        {
+          "name": "delegation_record_user_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user_account"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "delegation_metadata_user_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  45,
+                  109,
+                  101,
+                  116,
+                  97,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user_account"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "user_account",
+          "writable": true
+        },
+        {
+          "name": "owner_program",
+          "address": "9Ab2YXtmKwFgEsGGQFkL53E2rSwtnqFptKxRXfV8uaAX"
+        },
+        {
+          "name": "delegation_program",
+          "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "deposit",
+      "discriminator": [
+        242,
+        35,
+        198,
+        137,
+        82,
+        225,
+        242,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "from",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "fund_house",
+      "discriminator": [
+        175,
+        231,
+        49,
+        44,
+        144,
+        102,
+        41,
+        69
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "house",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  104,
+                  111,
+                  117,
+                  115,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "from",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "init_user",
+      "discriminator": [
+        14,
+        51,
+        68,
+        159,
+        237,
+        78,
+        158,
+        102
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "user_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "session_key",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "house",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  104,
+                  111,
+                  117,
+                  115,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "price_authority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "place_bet",
+      "discriminator": [
+        222,
+        62,
+        67,
+        220,
+        63,
+        166,
+        126,
+        33
+      ],
+      "accounts": [
+        {
+          "name": "operator",
+          "docs": [
+            "Wallet authority or the registered session key."
+          ],
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "market"
+        },
+        {
+          "name": "book",
+          "writable": true
+        },
+        {
+          "name": "house",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  104,
+                  111,
+                  117,
+                  115,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_account",
+          "writable": true
+        },
+        {
+          "name": "feed"
+        }
+      ],
+      "args": [
+        {
+          "name": "direction",
+          "type": "u8"
+        },
+        {
+          "name": "stake",
+          "type": "u64"
+        },
+        {
+          "name": "duration_s",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "process_undelegation",
+      "discriminator": [
+        196,
+        28,
+        41,
+        206,
+        48,
+        37,
+        51,
+        167
+      ],
+      "accounts": [
+        {
+          "name": "base_account",
+          "writable": true
+        },
+        {
+          "name": "buffer"
+        },
+        {
+          "name": "payer",
+          "writable": true
+        },
+        {
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "account_seeds",
+          "type": {
+            "vec": "bytes"
+          }
+        }
+      ]
+    },
+    {
+      "name": "push_price",
+      "discriminator": [
+        113,
+        238,
+        232,
+        235,
+        60,
+        71,
+        127,
+        203
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "feed",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "symbol",
+          "type": {
+            "array": [
+              "u8",
+              12
+            ]
+          }
+        },
+        {
+          "name": "price",
+          "type": "i64"
+        },
+        {
+          "name": "expo",
+          "type": "i32"
+        },
+        {
+          "name": "ts_ms",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "resolve_bet",
+      "discriminator": [
+        137,
+        132,
+        33,
+        97,
+        48,
+        208,
+        30,
+        159
+      ],
+      "accounts": [
+        {
+          "name": "resolver",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "market"
+        },
+        {
+          "name": "book",
+          "writable": true
+        },
+        {
+          "name": "house",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  104,
+                  111,
+                  117,
+                  115,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_account",
+          "writable": true
+        },
+        {
+          "name": "feed"
+        }
+      ],
+      "args": [
+        {
+          "name": "bet_idx",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "set_session_key",
+      "discriminator": [
+        13,
+        147,
+        179,
+        38,
+        67,
+        1,
+        69,
+        132
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "user_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_key",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "undelegate_ops",
+      "discriminator": [
+        95,
+        100,
+        45,
+        133,
+        24,
+        40,
+        155,
+        121
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "undelegate_user",
+      "discriminator": [
+        116,
+        139,
+        246,
+        224,
+        235,
+        172,
+        97,
+        25
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "user_account",
+          "writable": true
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "withdraw",
+      "discriminator": [
+        183,
+        18,
+        70,
+        156,
+        148,
+        109,
+        161,
+        34
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "to",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "House",
+      "discriminator": [
+        21,
+        145,
+        94,
+        109,
+        254,
+        199,
+        210,
+        151
+      ]
+    },
+    {
+      "name": "MarketBook",
+      "discriminator": [
+        233,
+        234,
+        178,
+        35,
+        52,
+        91,
+        54,
+        29
+      ]
+    },
+    {
+      "name": "MarketConfig",
+      "discriminator": [
+        119,
+        255,
+        200,
+        88,
+        252,
+        82,
+        128,
+        24
+      ]
+    },
+    {
+      "name": "UserAccount",
+      "discriminator": [
+        211,
+        33,
+        136,
+        16,
+        186,
+        110,
+        242,
+        127
+      ]
+    },
+    {
+      "name": "WickFeed",
+      "discriminator": [
+        186,
+        218,
+        246,
+        254,
+        184,
+        158,
+        168,
+        200
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "BetPlaced",
+      "discriminator": [
+        88,
+        88,
+        145,
+        226,
+        126,
+        206,
+        32,
+        0
+      ]
+    },
+    {
+      "name": "BetResolved",
+      "discriminator": [
+        133,
+        89,
+        89,
+        125,
+        4,
+        219,
+        82,
+        137
+      ]
+    },
+    {
+      "name": "Deposited",
+      "discriminator": [
+        111,
+        141,
+        26,
+        45,
+        161,
+        35,
+        100,
+        57
+      ]
+    },
+    {
+      "name": "PricePushed",
+      "discriminator": [
+        82,
+        163,
+        38,
+        13,
+        83,
+        94,
+        115,
+        118
+      ]
+    },
+    {
+      "name": "Withdrawn",
+      "discriminator": [
+        20,
+        89,
+        223,
+        198,
+        194,
+        124,
+        219,
+        13
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Paused",
+      "msg": "Protocol is paused"
+    },
+    {
+      "code": 6001,
+      "name": "MarketDisabled",
+      "msg": "Market is disabled"
+    },
+    {
+      "code": 6002,
+      "name": "Unauthorized",
+      "msg": "Signer is not authorized for this user account"
+    },
+    {
+      "code": 6003,
+      "name": "BetTooSmall",
+      "msg": "Stake is below the minimum bet"
+    },
+    {
+      "code": 6004,
+      "name": "BetTooLarge",
+      "msg": "Stake is above the maximum bet"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidDuration",
+      "msg": "Duration outside the allowed range"
+    },
+    {
+      "code": 6006,
+      "name": "InsufficientBalance",
+      "msg": "Insufficient balance"
+    },
+    {
+      "code": 6007,
+      "name": "InsufficientHouseLiquidity",
+      "msg": "House liquidity cannot cover this bet"
+    },
+    {
+      "code": 6008,
+      "name": "NoFreeBetSlot",
+      "msg": "No free bet slot — resolve an open bet first"
+    },
+    {
+      "code": 6009,
+      "name": "BetNotOpen",
+      "msg": "Bet slot is not an open bet"
+    },
+    {
+      "code": 6010,
+      "name": "MarketMismatch",
+      "msg": "Bet belongs to a different market"
+    },
+    {
+      "code": 6011,
+      "name": "NotExpired",
+      "msg": "Bet has not expired yet — no settlement print available"
+    },
+    {
+      "code": 6012,
+      "name": "FeedMismatch",
+      "msg": "Feed account does not match the market's pinned feed"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidFeed",
+      "msg": "Feed data is invalid or unsupported"
+    },
+    {
+      "code": 6014,
+      "name": "StaleFeed",
+      "msg": "Feed print is too old to open a position against"
+    },
+    {
+      "code": 6015,
+      "name": "OpenBetsRemain",
+      "msg": "Account still has open bets"
+    },
+    {
+      "code": 6016,
+      "name": "BadMarketIndex",
+      "msg": "Market index out of range"
+    },
+    {
+      "code": 6017,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6018,
+      "name": "SymbolMismatch",
+      "msg": "Symbol mismatch"
+    }
+  ],
+  "types": [
+    {
+      "name": "Bet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "direction",
+            "type": "u8"
+          },
+          {
+            "name": "market_idx",
+            "type": "u8"
+          },
+          {
+            "name": "_pad",
+            "type": "u8"
+          },
+          {
+            "name": "stake",
+            "type": "u64"
+          },
+          {
+            "name": "potential_profit",
+            "type": "u64"
+          },
+          {
+            "name": "strike",
+            "type": "i64"
+          },
+          {
+            "name": "expo",
+            "type": "i32"
+          },
+          {
+            "name": "placed_ms",
+            "type": "i64"
+          },
+          {
+            "name": "expiry_ms",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BetPlaced",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "market_idx",
+            "type": "u8"
+          },
+          {
+            "name": "bet_idx",
+            "type": "u8"
+          },
+          {
+            "name": "direction",
+            "type": "u8"
+          },
+          {
+            "name": "stake",
+            "type": "u64"
+          },
+          {
+            "name": "strike",
+            "type": "i64"
+          },
+          {
+            "name": "expo",
+            "type": "i32"
+          },
+          {
+            "name": "placed_ms",
+            "type": "i64"
+          },
+          {
+            "name": "expiry_ms",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BetResolved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "market_idx",
+            "type": "u8"
+          },
+          {
+            "name": "bet_idx",
+            "type": "u8"
+          },
+          {
+            "name": "outcome",
+            "type": "u8"
+          },
+          {
+            "name": "stake",
+            "type": "u64"
+          },
+          {
+            "name": "payout",
+            "type": "u64"
+          },
+          {
+            "name": "strike",
+            "type": "i64"
+          },
+          {
+            "name": "settle_price",
+            "type": "i64"
+          },
+          {
+            "name": "expo",
+            "type": "i32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "price_authority",
+            "docs": [
+              "Keeper key allowed to push WickFeed prices (Flash Trade exotics)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "payout_bps",
+            "docs": [
+              "Total return on a win in bps of stake (19_000 = 1.9x back, 0.9x profit)."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "min_bet",
+            "type": "u64"
+          },
+          {
+            "name": "max_bet",
+            "type": "u64"
+          },
+          {
+            "name": "min_duration_s",
+            "type": "u16"
+          },
+          {
+            "name": "max_duration_s",
+            "type": "u16"
+          },
+          {
+            "name": "max_feed_age_ms",
+            "docs": [
+              "Max age of a feed print at placement time, in ms."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "num_markets",
+            "type": "u8"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "vault_bump",
+            "type": "u8"
+          },
+          {
+            "name": "vault_token_bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Deposited",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "balance",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "House",
+      "docs": [
+        "House liquidity ledger. Tokens live in the L1 vault; this tracks the house share."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "balance",
+            "type": "u64"
+          },
+          {
+            "name": "locked",
+            "docs": [
+              "Sum of potential profit payouts across all open bets (solvency reserve)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "lifetime_pnl",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MarketBook",
+      "docs": [
+        "Per-market open-interest book. Delegated to the ER; read by the hedger keeper."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "idx",
+            "type": "u8"
+          },
+          {
+            "name": "long_open",
+            "type": "u64"
+          },
+          {
+            "name": "short_open",
+            "type": "u64"
+          },
+          {
+            "name": "volume",
+            "type": "u64"
+          },
+          {
+            "name": "open_bets",
+            "type": "u32"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MarketConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "idx",
+            "type": "u8"
+          },
+          {
+            "name": "feed_kind",
+            "type": "u8"
+          },
+          {
+            "name": "enabled",
+            "type": "bool"
+          },
+          {
+            "name": "symbol",
+            "type": {
+              "array": [
+                "u8",
+                12
+              ]
+            }
+          },
+          {
+            "name": "feed",
+            "docs": [
+              "Pinned feed account this market settles against."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PricePushed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "symbol",
+            "type": {
+              "array": [
+                "u8",
+                12
+              ]
+            }
+          },
+          {
+            "name": "price",
+            "type": "i64"
+          },
+          {
+            "name": "expo",
+            "type": "i32"
+          },
+          {
+            "name": "ts_ms",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "session_key",
+            "docs": [
+              "Ephemeral browser key allowed to trade for this account (gasless one-tap UX)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "balance",
+            "type": "u64"
+          },
+          {
+            "name": "open_bets",
+            "type": "u8"
+          },
+          {
+            "name": "wins",
+            "type": "u32"
+          },
+          {
+            "name": "losses",
+            "type": "u32"
+          },
+          {
+            "name": "pushes",
+            "type": "u32"
+          },
+          {
+            "name": "streak",
+            "type": "u32"
+          },
+          {
+            "name": "best_streak",
+            "type": "u32"
+          },
+          {
+            "name": "total_wagered",
+            "type": "u64"
+          },
+          {
+            "name": "pnl",
+            "type": "i64"
+          },
+          {
+            "name": "bets",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "Bet"
+                  }
+                },
+                8
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WickFeed",
+      "docs": [
+        "Wick's own pushed feed (Flash Trade exotic markets; also used on localnet).",
+        "ts_ms is millisecond-precision, unlike Pyth receiver's seconds."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "symbol",
+            "type": {
+              "array": [
+                "u8",
+                12
+              ]
+            }
+          },
+          {
+            "name": "price",
+            "type": "i64"
+          },
+          {
+            "name": "expo",
+            "type": "i32"
+          },
+          {
+            "name": "ts_ms",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Withdrawn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "balance",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}
