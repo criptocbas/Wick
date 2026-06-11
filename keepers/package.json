@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "setup": "tsx setup.ts",
-    "daemon": "tsx daemon.ts"
+    "daemon": "tsx daemon.ts",
+    "hedger": "tsx hedger.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",

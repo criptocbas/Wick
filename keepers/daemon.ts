@@ -9,12 +9,13 @@
  */
 import http from "node:http";
 import BN from "bn.js";
-import { PublicKey, Transaction } from "@solana/web3.js";
+import { PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import {
   getOrCreateAssociatedTokenAccount,
   mintTo,
 } from "@solana/spl-token";
 import {
+  CLUSTER,
   DAEMON_PORT,
   EXPO,
   MARKETS,
@@ -23,8 +24,12 @@ import {
   sendER,
   symbolBytes,
   toRaw,
+  usesPythOracle,
   type MarketDef,
 } from "./common";
+
+/** Markets the daemon is responsible for (MagicBlock-oracle markets push themselves). */
+const PUSHED = MARKETS.filter((m) => !usesPythOracle(m));
 
 const SOURCE = process.env.PRICE_SOURCE ?? "synthetic";
 const TICK_MS = Number(process.env.TICK_MS ?? 250);
@@ -49,7 +54,9 @@ function syntheticPrice(m: MarketDef): number {
   return walk[m.symbol];
 }
 
-let flashCache: Record<string, number> = {};
+/** /v2/prices returns an object keyed by symbol:
+ *  { "SOL": { price, exponent, priceUi, timestampUs, marketSession }, ... } */
+let flashCache: Record<string, { price: number; tsMs: number }> = {};
 let flashOk = false;
 
 async function pollFlash(): Promise<void> {
@@ -59,18 +66,13 @@ async function pollFlash(): Promise<void> {
     });
     if (!res.ok) throw new Error(`${res.status}`);
     const body: any = await res.json();
-    const list: any[] = Array.isArray(body) ? body : body.prices ?? body.data ?? [];
-    const next: Record<string, number> = {};
-    for (const entry of list) {
-      const sym = String(entry.symbol ?? entry.token ?? "").toUpperCase();
-      const m = MARKETS.find((mk) => mk.flashSymbol === sym);
+    const next: Record<string, { price: number; tsMs: number }> = {};
+    for (const [sym, v] of Object.entries<any>(body)) {
+      const m = MARKETS.find((mk) => mk.flashSymbol === sym.toUpperCase());
       if (!m) continue;
-      const raw = entry.price ?? entry.midPrice ?? entry.p;
-      const price =
-        typeof raw === "object" && raw
-          ? Number(raw.price ?? raw.value) * 10 ** Number(raw.exponent ?? raw.expo ?? 0)
-          : Number(raw);
-      if (isFinite(price) && price > 0) next[m.symbol] = price;
+      const price = Number(v.priceUi);
+      const tsMs = Math.floor(Number(v.timestampUs) / 1000);
+      if (isFinite(price) && price > 0 && isFinite(tsMs)) next[m.symbol] = { price, tsMs };
     }
     if (Object.keys(next).length > 0) {
       flashCache = next;
@@ -83,13 +85,15 @@ async function pollFlash(): Promise<void> {
   }
 }
 
-function currentPrice(m: MarketDef): number {
-  if (SOURCE === "flash" && flashOk && flashCache[m.symbol]) {
-    // keep the walk anchored so a fallback is seamless
-    walk[m.symbol] = flashCache[m.symbol];
-    return flashCache[m.symbol];
+/** Real Flash print (with its true timestamp — closed markets go stale, by design)
+ *  or a synthetic walk stamped now. */
+function currentPrice(m: MarketDef): { price: number; tsMs: number } {
+  const f = SOURCE === "flash" && flashOk ? flashCache[m.symbol] : undefined;
+  if (f) {
+    walk[m.symbol] = f.price; // keep the walk anchored for seamless fallback
+    return f;
   }
-  return syntheticPrice(m);
+  return { price: syntheticPrice(m), tsMs: Date.now() };
 }
 
 // ── pusher loop: one ER tx per tick with every feed update ────
@@ -101,16 +105,20 @@ async function pushTick(): Promise<void> {
   if (pushing) return;
   pushing = true;
   try {
-    const now = new BN(Date.now());
     const tx = new Transaction();
-    for (const m of MARKETS) {
+    const lastTs: Record<string, number> = {};
+    for (const m of PUSHED) {
+      const { price, tsMs } = currentPrice(m);
+      if (lastTs[m.symbol] === tsMs) continue; // no new print
+      lastTs[m.symbol] = tsMs;
       tx.add(
         await ctx.program.methods
-          .pushPrice(symbolBytes(m.symbol), toRaw(currentPrice(m)), EXPO, now)
+          .pushPrice(symbolBytes(m.symbol), toRaw(price), EXPO, new BN(tsMs))
           .accounts({ authority: ctx.admin.publicKey, feed: P.feed(m.symbol) })
           .instruction()
       );
     }
+    if (tx.instructions.length === 0) return;
     await sendER(ctx, tx);
     if (++pushCount % 240 === 0)
       console.log(`pushed ${pushCount} ticks (${SOURCE}${flashOk ? "+flash" : ""})`);
@@ -130,8 +138,16 @@ async function faucet(wallet: string): Promise<{ sol: boolean; tokens: boolean }
     return cfg.mint as PublicKey;
   })();
 
-  const sig = await ctx.base.requestAirdrop(pk, FAUCET_SOL);
-  await ctx.base.confirmTransaction(sig, "confirmed").catch(() => {});
+  const sol = CLUSTER === "localnet" ? FAUCET_SOL : 30_000_000; // devnet: 0.03 SOL from admin
+  if (CLUSTER === "localnet") {
+    const sig = await ctx.base.requestAirdrop(pk, sol);
+    await ctx.base.confirmTransaction(sig, "confirmed").catch(() => {});
+  } else {
+    const tx = new Transaction().add(
+      SystemProgram.transfer({ fromPubkey: ctx.admin.publicKey, toPubkey: pk, lamports: sol })
+    );
+    await sendAndConfirmTransaction(ctx.base, tx, [ctx.admin], { commitment: "confirmed" });
+  }
 
   const ata = await getOrCreateAssociatedTokenAccount(ctx.base, ctx.admin, mintPk, pk);
   await mintTo(ctx.base, ctx.admin, mintPk, ata.address, ctx.admin, FAUCET_TOKENS);

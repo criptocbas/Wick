@@ -1,5 +1,11 @@
 import { toUi } from "./chain/config";
 
+/** MagicBlock's oracle stores the exponent as a positive magnitude (8 ⇒ ×10⁻⁸);
+ *  WickFeeds store it signed (−8). Normalize: positive exponents are decimals. */
+export function applyExpo(raw: number, expo: number): number {
+  return raw * 10 ** (expo > 0 ? -expo : expo);
+}
+
 export function fmtMoney(units: number): string {
   return toUi(units).toLocaleString("en-US", {
     minimumFractionDigits: 2,

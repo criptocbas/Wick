@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useStore, openBets } from "../state/store";
-import { fmtMoney, fmtPrice } from "../util";
+import { applyExpo, fmtMoney, fmtPrice } from "../util";
 import { DIRECTION_UP, type Bet } from "../chain/wick";
 
 /** A live bet: a fuse burning down in real time. */
@@ -36,7 +36,7 @@ function Strip({ bet }: { bet: Bet }) {
   }, [bet.expiryMs, bet.placedMs]);
 
   const isUp = bet.direction === DIRECTION_UP;
-  const strike = bet.strike * 10 ** bet.expo;
+  const strike = applyExpo(bet.strike, bet.expo);
 
   return (
     <div className="wick-strip" role="status">

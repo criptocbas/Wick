@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useStore, openBets } from "../state/store";
-import { splitPrice } from "../util";
+import { applyExpo, splitPrice } from "../util";
 import { DIRECTION_UP } from "../chain/wick";
 import { WickStrips } from "./WickStrip";
 import { VerdictOverlay } from "./Verdict";
@@ -76,7 +76,7 @@ export default function PriceStage() {
         if (p.p > hi) hi = p.p;
       }
       for (const b of bets) {
-        const strike = b.strike * 10 ** b.expo;
+        const strike = applyExpo(b.strike, b.expo);
         if (strike < lo) lo = strike;
         if (strike > hi) hi = strike;
       }
@@ -115,7 +115,7 @@ export default function PriceStage() {
 
       // strike lines + win zones
       for (const b of bets) {
-        const strike = b.strike * 10 ** b.expo;
+        const strike = applyExpo(b.strike, b.expo);
         const y = Y(strike);
         const isUp = b.direction === DIRECTION_UP;
         const col = isUp ? C.up : C.down;

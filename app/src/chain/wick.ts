@@ -104,12 +104,19 @@ export function decodeFeed(
       tsMs: (f.tsMs as BN).toNumber(),
     };
   }
-  // MagicBlock Pyth Lazer (PriceUpdateV2 layout): price i64 @73, expo i32 @89, publish_time @93
+  // MagicBlock Pyth Lazer (PriceUpdateV2 layout): price i64 @73, expo i32 @89
+  // (stored as a positive magnitude: 8 ⇒ ×10⁻⁸), publish_time (seconds) @93
   const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
   const raw = Number(dv.getBigInt64(73, true));
   const expo = dv.getInt32(89, true);
   const tsS = Number(dv.getBigInt64(93, true));
-  return { symbol: market.symbol, raw, expo, price: raw * 10 ** expo, tsMs: tsS * 1000 };
+  return {
+    symbol: market.symbol,
+    raw,
+    expo,
+    price: raw * 10 ** (expo > 0 ? -expo : expo),
+    tsMs: tsS * 1000,
+  };
 }
 
 export class WickClient {

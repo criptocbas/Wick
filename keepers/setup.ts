@@ -26,8 +26,10 @@ import {
   VALIDATOR,
   makeCtx,
   pdas,
+  pythFeedPda,
   symbolBytes,
   toRaw,
+  usesPythOracle,
 } from "./common";
 
 const FEED_KIND_WICK = 1;
@@ -83,6 +85,21 @@ async function main() {
   // 3) feeds + markets
   const cfgAcc: any = await (ctx.program.account as any).config.fetch(P.config);
   for (const m of MARKETS) {
+    if (usesPythOracle(m)) {
+      if (m.idx >= cfgAcc.numMarkets) {
+        await ctx.program.methods
+          .createMarket(m.idx, symbolBytes(m.symbol), 0, pythFeedPda(m.pythId!))
+          .accounts({
+            admin: ctx.admin.publicKey,
+            market: P.market(m.idx),
+            book: P.book(m.idx),
+          })
+          .rpc();
+        cfgAcc.numMarkets++;
+        console.log(`market ${m.idx} ${m.symbol} created (MagicBlock Pyth Lazer #${m.pythId})`);
+      }
+      continue;
+    }
     const feedPda = P.feed(m.symbol);
     if (!(await exists(feedPda)) && !(await delegated(feedPda))) {
       await ctx.program.methods
@@ -135,6 +152,7 @@ async function main() {
         .remainingAccounts([validator])
         .rpc({ skipPreflight: true });
     }
+    if (usesPythOracle(m)) continue; // oracle program owns + delegates its own feeds
     if (!(await delegated(P.feed(m.symbol)))) {
       await ctx.program.methods
         .delegateFeed(symbolBytes(m.symbol))
@@ -158,8 +176,8 @@ async function main() {
     markets: MARKETS.map((m) => ({
       idx: m.idx,
       symbol: m.symbol,
-      kind: FEED_KIND_WICK,
-      feed: P.feed(m.symbol).toBase58(),
+      kind: usesPythOracle(m) ? 0 : FEED_KIND_WICK,
+      feed: (usesPythOracle(m) ? pythFeedPda(m.pythId!) : P.feed(m.symbol)).toBase58(),
       display: m.display,
     })),
   };
