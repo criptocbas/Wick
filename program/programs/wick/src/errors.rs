@@ -40,4 +40,12 @@ pub enum WickError {
     MathOverflow,
     #[msg("Symbol mismatch")]
     SymbolMismatch,
+    #[msg("Settlement print is past the grace window — this bet must be voided")]
+    SettlementWindowMissed,
+    #[msg("Bet is still resolvable — the settlement window has not closed")]
+    BetNotVoidable,
+    #[msg("Bet would already be expired at placement — feed print too old")]
+    ExpiryInPast,
+    #[msg("Invalid protocol parameters")]
+    InvalidParams,
 }

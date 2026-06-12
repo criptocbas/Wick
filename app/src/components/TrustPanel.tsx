@@ -45,11 +45,12 @@ export default function TrustPanel() {
     },
     {
       k: "hedge",
-      title: "The house is hedged, not gambling against you",
+      title: "The house offsets its risk with real positions",
       body: (
         <>
-          Net trader exposure is offset with real perpetuals on Flash Trade mainnet, so
-          the house runs delta-neutral and earns the published edge.{" "}
+          Net trader exposure is read from the rollup books and offset with{" "}
+          <strong>real perpetuals on Flash Trade mainnet</strong> — you can open the
+          live hedge wallet and watch the positions move.{" "}
           {desk?.hedger ? link(desk.hedger, "Watch the hedge wallet") : <span className="trust-link muted">hedge desk</span>}
         </>
       ),
@@ -66,12 +67,14 @@ export default function TrustPanel() {
     },
     {
       k: "settle",
-      title: "Settlement is autonomous and permissionless",
+      title: "Settlement is permissionless and can't be cherry-picked",
       body: (
         <>
-          Each bet's resolution is scheduled on-chain at placement (a MagicBlock crank) and
-          can be settled by anyone against the live oracle — no privileged keeper to stall
-          or cherry-pick your payout.
+          A bet settles only against an oracle print inside its{" "}
+          <strong>settlement window</strong> — nobody, not even you, can wait for a
+          luckier later price. Anyone can resolve it: your browser, the house sweeper,
+          or an on-chain crank where the rollup supports one. If the feed ever goes dark,
+          the bet is voided and your stake refunded — funds are never stranded.
         </>
       ),
     },

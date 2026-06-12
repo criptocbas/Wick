@@ -1,5 +1,5 @@
 {
-  "address": "6urV1Zb4ASHuPzjqHSHnxgpxoE9F3SRxVnSE9DCaZtTC",
+  "address": "HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj",
   "metadata": {
     "name": "wick",
     "version": "0.1.0",
@@ -332,38 +332,38 @@
             "program": {
               "kind": "const",
               "value": [
-                87,
-                212,
-                150,
-                84,
-                114,
-                99,
-                220,
-                20,
-                76,
-                28,
-                1,
-                58,
-                152,
-                170,
-                139,
-                144,
-                248,
-                24,
-                76,
-                172,
-                137,
-                121,
-                202,
-                64,
-                72,
-                64,
-                229,
-                118,
-                87,
-                127,
+                245,
+                166,
+                38,
+                191,
+                122,
+                23,
+                169,
+                88,
+                213,
                 160,
-                11
+                55,
+                210,
+                123,
+                185,
+                121,
+                30,
+                145,
+                210,
+                157,
+                110,
+                136,
+                32,
+                223,
+                93,
+                128,
+                58,
+                203,
+                76,
+                107,
+                114,
+                150,
+                40
               ]
             }
           }
@@ -445,7 +445,7 @@
         },
         {
           "name": "owner_program",
-          "address": "6urV1Zb4ASHuPzjqHSHnxgpxoE9F3SRxVnSE9DCaZtTC"
+          "address": "HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj"
         },
         {
           "name": "delegation_program",
@@ -523,38 +523,38 @@
             "program": {
               "kind": "const",
               "value": [
-                87,
-                212,
-                150,
-                84,
-                114,
-                99,
-                220,
-                20,
-                76,
-                28,
-                1,
-                58,
-                152,
-                170,
-                139,
-                144,
-                248,
-                24,
-                76,
-                172,
-                137,
-                121,
-                202,
-                64,
-                72,
-                64,
-                229,
-                118,
-                87,
-                127,
+                245,
+                166,
+                38,
+                191,
+                122,
+                23,
+                169,
+                88,
+                213,
                 160,
-                11
+                55,
+                210,
+                123,
+                185,
+                121,
+                30,
+                145,
+                210,
+                157,
+                110,
+                136,
+                32,
+                223,
+                93,
+                128,
+                58,
+                203,
+                76,
+                107,
+                114,
+                150,
+                40
               ]
             }
           }
@@ -636,7 +636,7 @@
         },
         {
           "name": "owner_program",
-          "address": "6urV1Zb4ASHuPzjqHSHnxgpxoE9F3SRxVnSE9DCaZtTC"
+          "address": "HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj"
         },
         {
           "name": "delegation_program",
@@ -719,38 +719,38 @@
             "program": {
               "kind": "const",
               "value": [
-                87,
-                212,
-                150,
-                84,
-                114,
-                99,
-                220,
-                20,
-                76,
-                28,
-                1,
-                58,
-                152,
-                170,
-                139,
-                144,
-                248,
-                24,
-                76,
-                172,
-                137,
-                121,
-                202,
-                64,
-                72,
-                64,
-                229,
-                118,
-                87,
-                127,
+                245,
+                166,
+                38,
+                191,
+                122,
+                23,
+                169,
+                88,
+                213,
                 160,
-                11
+                55,
+                210,
+                123,
+                185,
+                121,
+                30,
+                145,
+                210,
+                157,
+                110,
+                136,
+                32,
+                223,
+                93,
+                128,
+                58,
+                203,
+                76,
+                107,
+                114,
+                150,
+                40
               ]
             }
           }
@@ -832,7 +832,7 @@
         },
         {
           "name": "owner_program",
-          "address": "6urV1Zb4ASHuPzjqHSHnxgpxoE9F3SRxVnSE9DCaZtTC"
+          "address": "HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj"
         },
         {
           "name": "delegation_program",
@@ -887,38 +887,38 @@
             "program": {
               "kind": "const",
               "value": [
-                87,
-                212,
-                150,
-                84,
-                114,
-                99,
-                220,
-                20,
-                76,
-                28,
-                1,
-                58,
-                152,
-                170,
-                139,
-                144,
-                248,
-                24,
-                76,
-                172,
-                137,
-                121,
-                202,
-                64,
-                72,
-                64,
-                229,
-                118,
-                87,
-                127,
+                245,
+                166,
+                38,
+                191,
+                122,
+                23,
+                169,
+                88,
+                213,
                 160,
-                11
+                55,
+                210,
+                123,
+                185,
+                121,
+                30,
+                145,
+                210,
+                157,
+                110,
+                136,
+                32,
+                223,
+                93,
+                128,
+                58,
+                203,
+                76,
+                107,
+                114,
+                150,
+                40
               ]
             }
           }
@@ -1000,7 +1000,7 @@
         },
         {
           "name": "owner_program",
-          "address": "6urV1Zb4ASHuPzjqHSHnxgpxoE9F3SRxVnSE9DCaZtTC"
+          "address": "HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj"
         },
         {
           "name": "delegation_program",
@@ -1367,6 +1367,10 @@
         {
           "name": "price_authority",
           "type": "pubkey"
+        },
+        {
+          "name": "oracle_program",
+          "type": "pubkey"
         }
       ]
     },
@@ -1633,6 +1637,129 @@
       ]
     },
     {
+      "name": "set_market_enabled",
+      "discriminator": [
+        206,
+        60,
+        159,
+        159,
+        62,
+        242,
+        4,
+        82
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "market",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "idx",
+          "type": "u8"
+        },
+        {
+          "name": "enabled",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "set_params",
+      "discriminator": [
+        27,
+        234,
+        178,
+        52,
+        147,
+        2,
+        187,
+        141
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "payout_bps",
+          "type": "u16"
+        },
+        {
+          "name": "min_bet",
+          "type": "u64"
+        },
+        {
+          "name": "max_bet",
+          "type": "u64"
+        },
+        {
+          "name": "min_duration_s",
+          "type": "u16"
+        },
+        {
+          "name": "max_duration_s",
+          "type": "u16"
+        },
+        {
+          "name": "max_feed_age_ms",
+          "type": "u32"
+        },
+        {
+          "name": "resolve_grace_ms",
+          "type": "u32"
+        },
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "set_session_key",
       "discriminator": [
         13,
@@ -1759,6 +1886,81 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "void_bet",
+      "discriminator": [
+        36,
+        30,
+        28,
+        196,
+        66,
+        16,
+        242,
+        53
+      ],
+      "accounts": [
+        {
+          "name": "resolver",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "market"
+        },
+        {
+          "name": "book",
+          "writable": true
+        },
+        {
+          "name": "house",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  104,
+                  111,
+                  117,
+                  115,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_account",
+          "writable": true
+        },
+        {
+          "name": "feed"
+        }
+      ],
+      "args": [
+        {
+          "name": "bet_idx",
+          "type": "u8"
+        }
+      ]
     },
     {
       "name": "withdraw",
@@ -2117,6 +2319,26 @@
       "code": 6018,
       "name": "SymbolMismatch",
       "msg": "Symbol mismatch"
+    },
+    {
+      "code": 6019,
+      "name": "SettlementWindowMissed",
+      "msg": "Settlement print is past the grace window — this bet must be voided"
+    },
+    {
+      "code": 6020,
+      "name": "BetNotVoidable",
+      "msg": "Bet is still resolvable — the settlement window has not closed"
+    },
+    {
+      "code": 6021,
+      "name": "ExpiryInPast",
+      "msg": "Bet would already be expired at placement — feed print too old"
+    },
+    {
+      "code": 6022,
+      "name": "InvalidParams",
+      "msg": "Invalid protocol parameters"
     }
   ],
   "types": [
@@ -2302,9 +2524,26 @@
           {
             "name": "max_feed_age_ms",
             "docs": [
-              "Max age of a feed print at placement time, in ms."
+              "Max age of a feed print at placement time, in ms. Must stay well below",
+              "min_duration_s*1000 so a bet can never be born at (or past) expiry."
             ],
             "type": "u32"
+          },
+          {
+            "name": "resolve_grace_ms",
+            "docs": [
+              "Settlement must use a print in [expiry, expiry + resolve_grace_ms];",
+              "past that the bet is voidable (stake refunded) instead of resolvable."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "oracle_program",
+            "docs": [
+              "Expected owner of kind-0 (Pyth Lazer) feed accounts on the ER.",
+              "Pubkey::default() disables the check (localnet has no kind-0 markets)."
+            ],
+            "type": "pubkey"
           },
           {
             "name": "num_markets",

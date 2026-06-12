@@ -13,6 +13,7 @@ export interface PendingBet {
   direction: number;
   stake: number;
   durationS: number;
+  createdAt: number;
 }
 
 export interface Toast {
@@ -123,8 +124,10 @@ interface WickStore {
 }
 
 const WINDOW_MS = 95_000;
-/** A market whose feed lags the freshest feed by more than this is treated as
- *  closed/stale — mirrors the program's on-chain max_feed_age guard (10s). */
+/** A market whose feed lags the freshest (always-live crypto) feed by more than
+ *  this is treated as closed — a dead/frozen print. Independent of the program's
+ *  placement-staleness guard (max_feed_age_ms, ~2.5s); this is generous on
+ *  purpose so brief network hiccups don't flap a live market to "closed". */
 const STALE_MS = 13_000;
 
 export const useStore = create<WickStore>((set, get) => ({

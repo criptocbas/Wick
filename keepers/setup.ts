@@ -23,6 +23,7 @@ import {
   DAEMON_PORT,
   EXPO,
   MARKETS,
+  ORACLE_PROGRAM,
   VALIDATOR,
   makeCtx,
   pdas,
@@ -63,8 +64,10 @@ async function main() {
   } else {
     mint = await createMint(ctx.base, ctx.admin, ctx.admin.publicKey, null, 6);
     console.log(`mint created ${mint.toBase58()}`);
+    // The oracle program owns the kind-0 (Pyth Lazer) feed clones on the ER;
+    // localnet has no kind-0 markets so the owner check never fires there.
     await ctx.program.methods
-      .initialize(ctx.admin.publicKey)
+      .initialize(ctx.admin.publicKey, ORACLE_PROGRAM)
       .accounts({ admin: ctx.admin.publicKey, mint })
       .rpc();
     console.log("protocol initialized");
@@ -170,7 +173,7 @@ async function main() {
     baseWs: BASE_WS,
     erRpc: ER_RPC,
     erWs: ER_WS,
-    daemon: `http://localhost:${DAEMON_PORT}`,
+    daemon: process.env.DAEMON_URL ?? `http://localhost:${DAEMON_PORT}`,
     mint: mint.toBase58(),
     validator: VALIDATOR,
     markets: MARKETS.map((m) => ({

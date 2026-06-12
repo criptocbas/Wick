@@ -37,7 +37,14 @@ export default function TradeControls() {
   const fire = async (direction: number) => {
     if (!client || !market) return;
     const id = crypto.randomUUID();
-    addPending({ id, marketIdx: market.idx, direction, stake: stakeUnits, durationS });
+    addPending({
+      id,
+      marketIdx: market.idx,
+      direction,
+      stake: stakeUnits,
+      durationS,
+      createdAt: Date.now(),
+    });
     if (soundOn) sIgnite();
     try {
       const { ms } = await client.placeBet(market, direction, stakeUnits, durationS);

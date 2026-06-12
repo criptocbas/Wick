@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import { loadChainConfig } from "./chain/config";
 import { loadBurner } from "./chain/wallet";
 import { WickClient } from "./chain/wick";
-import { useStore, openBets } from "./state/store";
+import { useStore, openBets, freshestTs } from "./state/store";
+import { RESOLVE_GRACE_MS, VOID_DELAY_MS } from "./chain/wick";
 import { sWin, sLoss, sPush } from "./sounds";
 import TopBar from "./components/TopBar";
 import MarketRail from "./components/MarketRail";
@@ -128,12 +129,24 @@ export default function App() {
           });
         }
 
-        if (feed.tsMs < bet.expiryMs) continue;
+        // Settle against a print inside [expiry, expiry+grace]; once the window
+        // has closed unfilled (dead/frozen feed, or we were backgrounded), void
+        // for a stake refund. The always-live crypto feeds give a chain clock.
+        const chainNow = Math.max(freshestTs(s.feeds), feed.tsMs);
+        const windowEnd = bet.expiryMs + RESOLVE_GRACE_MS;
+        const inWindow = feed.tsMs >= bet.expiryMs && feed.tsMs <= windowEnd;
+        const voidable =
+          chainNow > windowEnd + VOID_DELAY_MS &&
+          (feed.tsMs < bet.expiryMs || feed.tsMs > windowEnd);
+        if (!inWindow && !voidable) continue;
+
         const key = `${bet.slot}:${bet.placedMs}`;
         if (resolvingRef.current.has(key)) continue;
         resolvingRef.current.add(key);
         try {
-          const verdict = await client.resolveBet(market, bet.slot);
+          const verdict = inWindow
+            ? await client.resolveBet(market, bet.slot)
+            : await client.voidBet(market, bet.slot);
           if (verdict) {
             s.showVerdict(verdict);
             if (s.soundOn) {

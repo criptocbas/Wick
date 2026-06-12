@@ -41,8 +41,8 @@ export default function HouseDesk() {
 
         <p className="desk-explainer">
           Wick is the counterparty to every position. The desk reads net trader
-          exposure from the rollup and offsets it with real perpetuals on Flash
-          Trade — so the house runs delta-neutral instead of gambling.
+          exposure from the rollup and offsets its direction with real perpetuals
+          on Flash Trade mainnet — a live hedge, not a bet against you.
         </p>
 
         <div className="desk-stat-row">

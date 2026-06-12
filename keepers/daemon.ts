@@ -1,10 +1,14 @@
 /**
- * The Wick daemon: price pusher + faucet.
+ * The Wick daemon: price pusher + settlement sweeper + faucet.
  *
  *  - Pushes prices into the delegated WickFeed accounts on the ER every ~250ms
  *    (gasless — this is a free real-time oracle, courtesy of the rollup).
  *    PRICE_SOURCE=flash pulls real prices from Flash Trade's public V2 API;
  *    PRICE_SOURCE=synthetic (default) runs a seeded random walk per market.
+ *  - Sweeps EVERY user's open bets: resolves them the moment a qualifying
+ *    print lands in the settlement window, voids them (stake refund) if the
+ *    window closes unfilled. Both instructions are permissionless, so this is
+ *    a liveness guarantee, not a privilege — anyone can run the same sweep.
  *  - Serves a faucet for burner wallets: POST /faucet {wallet} → SOL + 1,000 wUSDC.
  */
 import fs from "node:fs";
@@ -12,6 +16,7 @@ import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import BN from "bn.js";
+import bs58 from "bs58";
 import {
   Keypair,
   PublicKey,
@@ -28,8 +33,10 @@ import {
   DAEMON_PORT,
   EXPO,
   MARKETS,
+  loadIdl,
   makeCtx,
   pdas,
+  pythFeedPda,
   sendER,
   symbolBytes,
   toRaw,
@@ -176,7 +183,168 @@ async function pushTick(): Promise<void> {
   }
 }
 
+// ── settlement sweeper ────────────────────────────────────────
+// The on-chain rule is strict: a bet settles only against a print inside
+// [expiry, expiry + grace], else it must be voided. The browser auto-resolves
+// its own bets, the crank fires where the ER supports it — and this sweep is
+// the house-run backstop that makes settlement independent of both.
+
+const SWEEP_MS = Number(process.env.SWEEP_MS ?? 400);
+/** Mirrors the program's VOID_DELAY_MS (state.rs). */
+const VOID_DELAY_MS = 2_000;
+
+const USER_DISCRIMINATOR: number[] = (() => {
+  const acc = loadIdl().accounts.find((a: any) => a.name === "UserAccount");
+  if (!acc?.discriminator) throw new Error("UserAccount discriminator missing from IDL");
+  return acc.discriminator;
+})();
+const userFilter = [
+  { memcmp: { offset: 0, bytes: bs58.encode(Buffer.from(USER_DISCRIMINATOR)) } },
+];
+
+/** resolve_grace_ms from on-chain config (refreshed in the background). */
+let graceMs = 3_000;
+async function refreshConfig(): Promise<void> {
+  try {
+    const cfg: any = await (ctx.program.account as any).config.fetch(P.config);
+    graceMs = cfg.resolveGraceMs;
+  } catch {
+    /* keep the last known value */
+  }
+}
+
+function feedPdaOf(m: MarketDef): PublicKey {
+  return usesPythOracle(m) ? pythFeedPda(m.pythId!) : P.feed(m.symbol);
+}
+
+/** Latest print timestamp (ms) from a raw feed account. */
+function feedTsOf(m: MarketDef, data: Buffer): number {
+  if (usesPythOracle(m)) return Number(data.readBigInt64LE(93)) * 1000; // publish_time (s)
+  return Number(data.readBigInt64LE(8 + 12 + 8 + 4)); // WickFeed.ts_ms
+}
+
+const sweepCooldown = new Map<string, number>();
+const sweepStats = { resolved: 0, voided: 0 };
+let sweeping = false;
+
+async function sweepTick(): Promise<void> {
+  if (sweeping) return;
+  sweeping = true;
+  try {
+    const feedInfos = await ctx.er.getMultipleAccountsInfo(MARKETS.map(feedPdaOf));
+    const feedTs: Record<number, number> = {};
+    MARKETS.forEach((m, i) => {
+      const info = feedInfos[i];
+      if (info) feedTs[m.idx] = feedTsOf(m, info.data as Buffer);
+    });
+
+    const users = await ctx.er.getProgramAccounts(ctx.programId, { filters: userFilter });
+    const now = Date.now();
+    for (const { pubkey, account } of users) {
+      let u: any;
+      try {
+        u = ctx.program.coder.accounts.decode("userAccount", account.data as Buffer);
+      } catch {
+        continue;
+      }
+      if (u.openBets === 0) continue;
+      (u.bets as any[]).forEach((b, slot) => {
+        if (b.status !== 1) return;
+        const m = MARKETS.find((mk) => mk.idx === b.marketIdx);
+        const ts = m ? feedTs[m.idx] : undefined;
+        if (!m || ts === undefined) return;
+        const expiry = (b.expiryMs as BN).toNumber();
+        const windowEnd = expiry + graceMs;
+        const key = `${pubkey.toBase58()}:${slot}:${(b.placedMs as BN).toNumber()}`;
+        if ((sweepCooldown.get(key) ?? 0) > now) return;
+
+        let action: "resolve" | "void" | null = null;
+        if (ts >= expiry && ts <= windowEnd) action = "resolve";
+        else if (now > windowEnd + VOID_DELAY_MS + 500 && (ts < expiry || ts > windowEnd))
+          action = "void";
+        if (!action) return;
+
+        sweepCooldown.set(key, now + 2_500);
+        const method =
+          action === "resolve"
+            ? ctx.program.methods.resolveBet(slot)
+            : ctx.program.methods.voidBet(slot);
+        void method
+          .accounts({
+            resolver: ctx.admin.publicKey,
+            market: P.market(m.idx),
+            book: P.book(m.idx),
+            house: P.house,
+            userAccount: pubkey,
+            feed: feedPdaOf(m),
+          })
+          .instruction()
+          .then((ix) => sendER(ctx, new Transaction().add(ix)))
+          .then(() => {
+            sweepStats[action === "resolve" ? "resolved" : "voided"]++;
+          })
+          .catch(() => {
+            /* usually lost the race to the user's own resolver — fine */
+          });
+      });
+    }
+    if (sweepCooldown.size > 5_000) {
+      for (const [k, until] of sweepCooldown) if (until < now) sweepCooldown.delete(k);
+    }
+  } catch (e) {
+    console.warn("sweep failed:", e instanceof Error ? e.message.slice(0, 120) : e);
+  } finally {
+    sweeping = false;
+  }
+}
+
 // ── faucet ────────────────────────────────────────────────────
+
+const FAUCET_DISABLED = process.env.FAUCET_DISABLED === "1";
+/** The faucet spends the admin key's SOL, so the binding limit is a GLOBAL
+ *  hourly cap on how many grants it will make — fresh keypairs and spoofed IPs
+ *  can't get past it. Per-wallet + per-IP windows are friction on top. We trust
+ *  X-Forwarded-For only behind a known proxy (TRUST_PROXY=1); otherwise the
+ *  socket address is authoritative so the header can't be spoofed to rotate IPs. */
+const FAUCET_WALLET_COOLDOWN_MS = Number(process.env.FAUCET_WALLET_COOLDOWN_MS ?? 10 * 60_000);
+const FAUCET_IP_MAX_PER_HOUR = Number(process.env.FAUCET_IP_MAX_PER_HOUR ?? 6);
+const FAUCET_GLOBAL_MAX_PER_HOUR = Number(process.env.FAUCET_GLOBAL_MAX_PER_HOUR ?? 40);
+const TRUST_PROXY = process.env.TRUST_PROXY === "1";
+const faucetWalletAt = new Map<string, number>();
+const faucetIpWindow = new Map<string, { n: number; t0: number }>();
+let faucetGlobal: number[] = []; // grant timestamps in the last hour
+
+function clientIp(req: http.IncomingMessage): string {
+  if (TRUST_PROXY && typeof req.headers["x-forwarded-for"] === "string") {
+    return req.headers["x-forwarded-for"].split(",")[0].trim();
+  }
+  return req.socket.remoteAddress ?? "?";
+}
+
+/** Decide before spending; pass `commit` once the grant actually happens so a
+ *  rejected/failed faucet doesn't consume the caller's quota. */
+function faucetGate(wallet: string, ip: string): { denied: string | null; commit: () => void } {
+  const deny = (m: string) => ({ denied: m, commit: () => {} });
+  if (FAUCET_DISABLED) return deny("faucet disabled");
+  const now = Date.now();
+  faucetGlobal = faucetGlobal.filter((t) => now - t < 60 * 60_000);
+  if (faucetGlobal.length >= FAUCET_GLOBAL_MAX_PER_HOUR) return deny("faucet busy — try later");
+  if (now - (faucetWalletAt.get(wallet) ?? 0) < FAUCET_WALLET_COOLDOWN_MS)
+    return deny("wallet already funded — try later");
+  const w = faucetIpWindow.get(ip);
+  if (w && now - w.t0 < 60 * 60_000 && w.n >= FAUCET_IP_MAX_PER_HOUR)
+    return deny("rate limit — try later");
+  return {
+    denied: null,
+    commit: () => {
+      faucetWalletAt.set(wallet, now);
+      faucetGlobal.push(now);
+      const cur = faucetIpWindow.get(ip);
+      if (cur && now - cur.t0 < 60 * 60_000) cur.n++;
+      else faucetIpWindow.set(ip, { n: 1, t0: now });
+    },
+  };
+}
 
 async function faucet(wallet: string): Promise<{ sol: boolean; tokens: boolean }> {
   const pk = new PublicKey(wallet);
@@ -225,6 +393,14 @@ function marketsStatus() {
 
 /** The house risk desk: net user exposure per market (from the ER books) plus
  *  the real offsetting positions the hedger holds on Flash Trade mainnet. */
+let deskCache: { at: number; value: any } = { at: 0, value: null };
+async function deskStateCached() {
+  if (deskCache.value && Date.now() - deskCache.at < 2_500) return deskCache.value;
+  const value = await deskState();
+  deskCache = { at: Date.now(), value };
+  return value;
+}
+
 async function deskState() {
   // 1) net user exposure per market from the delegated ER books
   const books = await ctx.er
@@ -272,15 +448,36 @@ async function deskState() {
   return { hedger: HEDGER_PUBKEY, exposure, positions };
 }
 
-/** Top players by streak/PnL, read from on-chain UserAccounts. */
+/** Top players by streak/PnL, read from on-chain UserAccounts. Delegated
+ *  accounts are owned by the Delegation Program on L1 and invisible to a
+ *  plain program scan there — so merge L1 (settled) with the ER (live),
+ *  letting the live session state win. */
 let lbCache: { at: number; rows: any[] } = { at: 0, rows: [] };
 async function leaderboard() {
   // cache for 5s — getProgramAccounts is heavy on public RPC
   if (Date.now() - lbCache.at < 5000) return lbCache.rows;
-  const all: any[] = await (ctx.program.account as any).userAccount.all();
-  const rows = all
-    .map((a) => {
-      const u = a.account;
+  const [l1, er] = await Promise.all([
+    (ctx.program.account as any).userAccount.all().catch(() => [] as any[]),
+    ctx.er
+      .getProgramAccounts(ctx.programId, { filters: userFilter })
+      .then((list) =>
+        list
+          .map(({ account }) => {
+            try {
+              return ctx.program.coder.accounts.decode("userAccount", account.data as Buffer);
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean)
+      )
+      .catch(() => [] as any[]),
+  ]);
+  const byWallet = new Map<string, any>();
+  for (const a of l1) byWallet.set(a.account.authority.toBase58(), a.account);
+  for (const u of er) byWallet.set(u.authority.toBase58(), u);
+  const rows = [...byWallet.values()]
+    .map((u) => {
       return {
         wallet: u.authority.toBase58(),
         wins: u.wins,
@@ -309,7 +506,13 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(code, { "Content-Type": "application/json" }).end(JSON.stringify(body));
 
   if (req.method === "GET" && req.url === "/health") {
-    return json(200, { ok: true, source: SOURCE, flash: flashOk, pushes: pushCount });
+    return json(200, {
+      ok: true,
+      source: SOURCE,
+      flash: flashOk,
+      pushes: pushCount,
+      swept: sweepStats,
+    });
   }
 
   if (req.method === "GET" && req.url === "/markets") {
@@ -318,7 +521,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && req.url === "/desk") {
     try {
-      return json(200, await deskState());
+      return json(200, await deskStateCached());
     } catch (e) {
       return json(500, { error: e instanceof Error ? e.message : "desk read failed" });
     }
@@ -338,7 +541,11 @@ const server = http.createServer(async (req, res) => {
     req.on("end", async () => {
       try {
         const { wallet } = JSON.parse(body);
+        new PublicKey(wallet); // validate before touching any limit state
+        const { denied, commit } = faucetGate(wallet, clientIp(req));
+        if (denied) return void res.writeHead(429).end(denied);
         const out = await faucet(wallet);
+        commit(); // only consume quota once the grant actually landed
         console.log(`faucet → ${wallet}`);
         res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(out));
       } catch (e) {
@@ -352,11 +559,28 @@ const server = http.createServer(async (req, res) => {
   res.writeHead(404).end();
 });
 
+// A long-running keeper must outlive a bad RPC response or one rejected
+// promise — log loudly, keep pushing prices and sweeping settlements.
+process.on("unhandledRejection", (e) => console.error("unhandledRejection:", e));
+process.on("uncaughtException", (e) => console.error("uncaughtException:", e));
+
+// A failure to bind the port is fatal — exit loudly rather than run a
+// half-alive daemon that pushes prices but serves nothing (the global
+// uncaughtException handler below would otherwise swallow it).
+server.on("error", (e) => {
+  console.error("daemon http server error:", e);
+  process.exit(1);
+});
 server.listen(DAEMON_PORT, () => {
-  console.log(`wick daemon on :${DAEMON_PORT} — source=${SOURCE}, tick=${TICK_MS}ms`);
+  console.log(
+    `wick daemon on :${DAEMON_PORT} — source=${SOURCE}, tick=${TICK_MS}ms, sweep=${SWEEP_MS}ms`
+  );
 });
 
 setInterval(pushTick, TICK_MS);
+setInterval(sweepTick, SWEEP_MS);
+void refreshConfig();
+setInterval(refreshConfig, 60_000);
 if (SOURCE === "flash") {
   void pollFlash();
   setInterval(pollFlash, 1000);

@@ -11,14 +11,17 @@ depth · meaningful ER use; +50% prize with Flash Trade integrated.
 
 ```
 program/   Anchor 1.0.2 program (ephemeral-rollups-sdk 0.14.x). Escrowed balances, per-market
-           books, house solvency reserve, oracle-settled bets, delegate→trade→commit→undelegate,
-           arm_resolution (best-effort crank). Devnet id 6urV1Zb4ASHuPzjqHSHnxgpxoE9F3SRxVnSE9DCaZtTC
+           books, house solvency reserve, WINDOWED oracle settlement ([expiry, expiry+grace]),
+           void_bet (dead-feed stake refund), set_params/set_market_enabled (admin tuning+pause),
+           oracle-program owner check on kind-0 feeds, delegate→trade→commit→undelegate,
+           arm_resolution (best-effort crank). Devnet id HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj
 app/       Vite + React + TS. Tap-to-trade, burning-wick timer, canvas price tape, hedge-desk
            drawer, latency duel, "Provably fair" trust panel, streak leaderboard. Talks to L1 +
            the ER via @coral-xyz/anchor 0.32.1 (the npm TS client never went 1.0).
 keepers/   TS services: setup.ts (one-shot protocol bootstrap → app/public/chain-config.json),
-           daemon.ts (gasless ER price pusher + faucet + /markets /desk /leaderboard read APIs),
-           hedger.ts (reads ER book exposure → real Flash V1 mainnet perps; DRY_RUN by default).
+           daemon.ts (gasless ER price pusher + permissionless SETTLEMENT SWEEPER + rate-limited
+           faucet + /markets /desk /leaderboard read APIs), hedger.ts (reads ER book exposure →
+           real Flash V1 mainnet perps; DRY_RUN by default).
 ```
 
 ## Architecture in one paragraph
@@ -27,9 +30,11 @@ Custody stays in an **L1 USDC escrow vault**; only the execution state (balances
 feeds) is **delegated** into the ER, where bets are placed and settled at ~50ms for zero fees,
 then committed/undelegated back to L1 to withdraw. SOL/BTC/ETH read MagicBlock's **Pyth Lazer**
 oracle directly on the ER; NVDA/gold/EUR are pushed from **Flash Trade** `/v2/prices` by the
-daemon. The house runs delta-neutral: the hedger offsets net trader exposure with **real Flash
-Trade perps on mainnet**. Settlement is permissionless (anyone can resolve) and additionally
-schedules an on-chain **crank** at placement so it's autonomous.
+daemon. The house offsets net trader exposure with **real Flash Trade perps on mainnet** (a real
+hedge desk — directional, not a fully delta/gamma-neutral book). Settlement is permissionless
+and **windowed** (`[expiry, expiry+grace]`, so timing can't be cherry-picked); it runs three ways
+— the bettor's browser, the daemon's permissionless **sweeper**, and an on-chain **crank** where
+the ER supports it. A dead feed is `void_bet`-refundable, so funds are never stranded.
 
 ## Run it
 
@@ -74,9 +79,16 @@ auto-flattens on Ctrl-C, and reclaims empty-ATA rent. `npm run hedger -- flatten
 
 ## Status
 
-Fully working on devnet end-to-end. Remaining for submission: host publicly, demo video (lead with
-the latency duel), Luma submission. Honest caveats to state in the pitch: exotic prices are
-keeper-signed (crypto uses MagicBlock's neutral oracle); the demo house is play-money while the
-hedge is real; the autonomous crank is localnet-proven and best-effort on the public devnet ER.
+Fully working on devnet end-to-end, hardened after a full security/economics/judge review. The
+settlement-timing exploit (resolver chose the settle print) is closed by the on-chain window +
+the daemon sweeper; stale-strike sniping is closed by `max_feed_age_ms` (2.5s) < `min_duration`
+(5s); dead-feed fund-stranding is closed by `void_bet`; faucet abuse is rate-limited; the
+leaderboard merges ER (live) + L1 (settled). Verified live on devnet: crypto + exotic bets swept
+by the daemon with no browser, void refund on a frozen feed, full browser onboard→bet→settle.
+Remaining for submission: host publicly, demo video (lead with the latency duel), Luma submission.
+Honest caveats to state in the pitch: exotic prices are keeper-signed (crypto uses MagicBlock's
+neutral oracle); the demo house is play-money while the hedge is real (directional, not fully
+risk-neutral); the autonomous crank is localnet-proven and best-effort on the public devnet ER
+(the permissionless sweeper covers it).
 
 🤖 Built with [Claude Code](https://claude.com/claude-code)

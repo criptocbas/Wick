@@ -25,6 +25,12 @@ export const MAGIC_CONTEXT_ID = new PublicKey(
 export const DIRECTION_DOWN = 0;
 export const DIRECTION_UP = 1;
 
+// Mirror the program's settlement constants (Config defaults / state.rs). Used
+// only to decide, client-side, whether an expired bet should be resolved (a
+// print landed in-window) or voided (the window closed unfilled).
+export const RESOLVE_GRACE_MS = 3_000;
+export const VOID_DELAY_MS = 2_000;
+
 export interface Bet {
   status: number;
   direction: number;
@@ -213,9 +219,9 @@ export class WickClient {
 
   // ── ER send path (the hot path: cached blockhash, raw send) ──
 
-  private async getErBlockhash(): Promise<string> {
+  private async getErBlockhash(force = false): Promise<string> {
     const now = performance.now();
-    if (!this.erBlockhash || now - this.erBlockhash.fetched > 8_000) {
+    if (force || !this.erBlockhash || now - this.erBlockhash.fetched > 8_000) {
       const { blockhash } = await this.er.getLatestBlockhash("confirmed");
       this.erBlockhash = { value: blockhash, fetched: now };
     }
@@ -245,17 +251,31 @@ export class WickClient {
     return false;
   }
 
-  /** Send to the ER, return { sig, ms }. */
+  /** Send to the ER, return { sig, ms }. A cached blockhash can age out
+   *  between taps; on a blockhash-expiry error, force-refresh and retry once. */
   async sendER(tx: Transaction): Promise<{ sig: string; ms: number }> {
-    tx.feePayer = this.wallet.publicKey;
-    tx.recentBlockhash = await this.getErBlockhash();
-    await this.wallet.signTransaction(tx);
-    const t0 = performance.now();
-    const sig = await this.er.sendRawTransaction(tx.serialize(), {
-      skipPreflight: true,
-    });
-    await this.confirmER(sig);
-    return { sig, ms: Math.round(performance.now() - t0) };
+    for (let attempt = 0; ; attempt++) {
+      tx.feePayer = this.wallet.publicKey;
+      tx.recentBlockhash = await this.getErBlockhash(attempt > 0);
+      tx.signatures = [];
+      await this.wallet.signTransaction(tx);
+      const t0 = performance.now();
+      try {
+        const sig = await this.er.sendRawTransaction(tx.serialize(), {
+          skipPreflight: true,
+        });
+        await this.confirmER(sig);
+        return { sig, ms: Math.round(performance.now() - t0) };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        // Retry only on a genuine blockhash-expiry, not on program errors whose
+        // logs happen to contain the word "expired" (e.g. NotExpired).
+        const blockhashStale =
+          /BlockhashNotFound|block height exceeded|blockhash.*not.*found/i.test(msg);
+        if (attempt < 1 && blockhashStale) continue;
+        throw e;
+      }
+    }
   }
 
   private async confirmER(sig: string, timeoutMs = 8_000): Promise<void> {
@@ -468,6 +488,12 @@ export class WickClient {
   }
 
   async resolveBet(market: MarketInfo, betIdx: number): Promise<Verdict | null> {
+    // Snapshot the bet + balance so we can infer the verdict from the on-chain
+    // delta even if the ER hasn't indexed the tx logs yet.
+    const before = await this.fetchUser("er");
+    const bet = before?.bets[betIdx];
+    const balBefore = before?.balance ?? 0;
+
     const tx = await this.program.methods
       .resolveBet(betIdx)
       .accounts({
@@ -480,26 +506,76 @@ export class WickClient {
       })
       .transaction();
     const { sig } = await this.sendER(tx);
-    try {
-      const txInfo = await this.er.getTransaction(sig, {
-        commitment: "confirmed",
-        maxSupportedTransactionVersion: 0,
-      });
-      for (const ev of this.events.parseLogs(txInfo?.meta?.logMessages ?? [])) {
-        if (ev.name === "betResolved") {
-          const d = ev.data as any;
-          return {
-            outcome: d.outcome === 1 ? "win" : d.outcome === 0 ? "loss" : "push",
-            stake: (d.stake as BN).toNumber(),
-            payout: (d.payout as BN).toNumber(),
-            marketIdx: d.marketIdx,
-          };
+
+    // Preferred: read the BetResolved event. ER log indexing can lag the
+    // confirmation, so retry the fetch a few times before giving up.
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const txInfo = await this.er.getTransaction(sig, {
+          commitment: "confirmed",
+          maxSupportedTransactionVersion: 0,
+        });
+        for (const ev of this.events.parseLogs(txInfo?.meta?.logMessages ?? [])) {
+          if (ev.name === "betResolved") {
+            const d = ev.data as any;
+            return {
+              outcome: outcomeLabel(d.outcome),
+              stake: (d.stake as BN).toNumber(),
+              payout: (d.payout as BN).toNumber(),
+              marketIdx: d.marketIdx,
+            };
+          }
         }
+        if (txInfo) break; // tx indexed but somehow no event — fall to delta
+      } catch {
+        /* keep retrying */
       }
-    } catch {
-      /* fall through — account subscription will still update state */
+      await new Promise((r) => setTimeout(r, 150));
+    }
+
+    // Fallback: infer from the balance delta against the snapshot.
+    if (bet) {
+      const after = await this.fetchUser("er");
+      if (after && after.bets[betIdx]?.status !== 1) {
+        const delta = after.balance - balBefore;
+        const outcome: Verdict["outcome"] =
+          delta >= bet.stake + bet.potentialProfit
+            ? "win"
+            : delta <= 0
+              ? "loss"
+              : "push";
+        return {
+          outcome,
+          stake: bet.stake,
+          payout: outcome === "win" ? bet.stake + bet.potentialProfit : delta > 0 ? delta : 0,
+          marketIdx: market.idx,
+        };
+      }
     }
     return null;
+  }
+
+  /** Void an expired bet whose settlement window closed with no qualifying
+   *  print (dead/frozen feed) — refunds the stake. Permissionless, like
+   *  resolveBet; lets a user self-rescue without waiting for the house sweeper. */
+  async voidBet(market: MarketInfo, betIdx: number): Promise<Verdict | null> {
+    const before = await this.fetchUser("er");
+    const bet = before?.bets[betIdx];
+    const tx = await this.program.methods
+      .voidBet(betIdx)
+      .accounts({
+        resolver: this.wallet.publicKey,
+        market: this.marketPda(market.idx),
+        book: this.bookPda(market.idx),
+        house: this.housePda,
+        userAccount: this.userPda,
+        feed: new PublicKey(market.feed),
+      })
+      .transaction();
+    await this.sendER(tx);
+    return bet
+      ? { outcome: "push", stake: bet.stake, payout: bet.stake, marketIdx: market.idx }
+      : null;
   }
 
   async undelegateUser(): Promise<void> {
@@ -565,6 +641,12 @@ export class WickClient {
     ]);
     return { er: er.ms, l1: l1.ms };
   }
+}
+
+/** Maps the on-chain outcome byte to a verdict label. A void (3) is a stake
+ *  refund — shown as a push so the UI never reports a phantom loss. */
+function outcomeLabel(o: number): Verdict["outcome"] {
+  return o === 1 ? "win" : o === 0 ? "loss" : "push";
 }
 
 export const MEMO_PROGRAM_ID = new PublicKey(

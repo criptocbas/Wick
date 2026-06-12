@@ -25,6 +25,13 @@ pub const DIRECTION_UP: u8 = 1;
 pub const OUTCOME_LOSS: u8 = 0;
 pub const OUTCOME_WIN: u8 = 1;
 pub const OUTCOME_PUSH: u8 = 2;
+/// No qualifying settlement print existed inside the grace window (dead feed /
+/// missed window) — the stake is refunded. Counted as a push on the record.
+pub const OUTCOME_VOID: u8 = 3;
+
+/// Extra wall-clock slack past the settlement window before a bet may be
+/// voided, so live resolvers always get the full window first.
+pub const VOID_DELAY_MS: i64 = 2_000;
 
 #[account]
 #[derive(InitSpace)]
@@ -39,8 +46,15 @@ pub struct Config {
     pub max_bet: u64,
     pub min_duration_s: u16,
     pub max_duration_s: u16,
-    /// Max age of a feed print at placement time, in ms.
+    /// Max age of a feed print at placement time, in ms. Must stay well below
+    /// min_duration_s*1000 so a bet can never be born at (or past) expiry.
     pub max_feed_age_ms: u32,
+    /// Settlement must use a print in [expiry, expiry + resolve_grace_ms];
+    /// past that the bet is voidable (stake refunded) instead of resolvable.
+    pub resolve_grace_ms: u32,
+    /// Expected owner of kind-0 (Pyth Lazer) feed accounts on the ER.
+    /// Pubkey::default() disables the check (localnet has no kind-0 markets).
+    pub oracle_program: Pubkey,
     pub num_markets: u8,
     pub paused: bool,
     pub bump: u8,

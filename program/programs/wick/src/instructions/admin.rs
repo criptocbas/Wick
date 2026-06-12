@@ -30,17 +30,27 @@ pub struct Initialize<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn initialize(ctx: Context<Initialize>, price_authority: Pubkey) -> Result<()> {
+pub fn initialize(
+    ctx: Context<Initialize>,
+    price_authority: Pubkey,
+    oracle_program: Pubkey,
+) -> Result<()> {
     let config = &mut ctx.accounts.config;
     config.admin = ctx.accounts.admin.key();
     config.price_authority = price_authority;
+    config.oracle_program = oracle_program;
     config.mint = ctx.accounts.mint.key();
     config.payout_bps = 19_000; // 1.9x total return on a win
     config.min_bet = 100_000; // 0.1 (6-decimal token)
     config.max_bet = 1_000_000_000; // 1,000
     config.min_duration_s = 5;
     config.max_duration_s = 300;
-    config.max_feed_age_ms = 10_000;
+    // Strictly below min_duration_s*1000 so a bet can never be born expired,
+    // but above the ~1s jitter of second-truncated Pyth Lazer publish times.
+    config.max_feed_age_ms = 2_500;
+    // Pyth Lazer prints ~every 250ms and pushed feeds ~every second, so a 3s
+    // window holds several qualifying prints while denying late cherry-picks.
+    config.resolve_grace_ms = 3_000;
     config.num_markets = 0;
     config.paused = false;
     config.bump = ctx.bumps.config;
@@ -153,6 +163,78 @@ pub fn push_price(
     feed.expo = expo;
     feed.ts_ms = ts_ms;
     emit!(PricePushed { symbol, price, expo, ts_ms });
+    Ok(())
+}
+
+/// Tune protocol parameters / pause trading. L1-only (config is never
+/// delegated); the ER refreshes its clone of undelegated accounts on access.
+#[derive(Accounts)]
+pub struct SetParams<'info> {
+    #[account(address = config.admin @ WickError::Unauthorized)]
+    pub admin: Signer<'info>,
+    #[account(mut, seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, Config>,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn set_params(
+    ctx: Context<SetParams>,
+    payout_bps: u16,
+    min_bet: u64,
+    max_bet: u64,
+    min_duration_s: u16,
+    max_duration_s: u16,
+    max_feed_age_ms: u32,
+    resolve_grace_ms: u32,
+    paused: bool,
+) -> Result<()> {
+    // payout must clear BPS (or the profit math underflows) and stay sane.
+    require!(
+        payout_bps as u64 > BPS && payout_bps as u64 <= 3 * BPS,
+        WickError::InvalidParams
+    );
+    require!(min_bet > 0 && min_bet <= max_bet, WickError::InvalidParams);
+    require!(
+        min_duration_s >= 1 && min_duration_s <= max_duration_s,
+        WickError::InvalidParams
+    );
+    // Feed-age must tolerate second-truncated oracle timestamps (~1s jitter)
+    // yet stay strictly below the shortest bet so none is born expired.
+    require!(
+        max_feed_age_ms >= 1_000 && (max_feed_age_ms as u64) < min_duration_s as u64 * 1_000,
+        WickError::InvalidParams
+    );
+    require!(
+        resolve_grace_ms >= 1_000 && resolve_grace_ms <= 30_000,
+        WickError::InvalidParams
+    );
+
+    let config = &mut ctx.accounts.config;
+    config.payout_bps = payout_bps;
+    config.min_bet = min_bet;
+    config.max_bet = max_bet;
+    config.min_duration_s = min_duration_s;
+    config.max_duration_s = max_duration_s;
+    config.max_feed_age_ms = max_feed_age_ms;
+    config.resolve_grace_ms = resolve_grace_ms;
+    config.paused = paused;
+    Ok(())
+}
+
+/// Enable/disable a single market (e.g. delist a broken feed). L1-only.
+#[derive(Accounts)]
+#[instruction(idx: u8)]
+pub struct SetMarketEnabled<'info> {
+    #[account(address = config.admin @ WickError::Unauthorized)]
+    pub admin: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, Config>,
+    #[account(mut, seeds = [MARKET_SEED, &[idx]], bump = market.bump)]
+    pub market: Account<'info, MarketConfig>,
+}
+
+pub fn set_market_enabled(ctx: Context<SetMarketEnabled>, _idx: u8, enabled: bool) -> Result<()> {
+    ctx.accounts.market.enabled = enabled;
     Ok(())
 }
 

@@ -51,7 +51,7 @@ pub fn place_bet(ctx: Context<PlaceBet>, direction: u8, stake: u64, duration_s: 
     require!(user.balance >= stake, WickError::InsufficientBalance);
     let slot = user.free_slot().ok_or(WickError::NoFreeBetSlot)?;
 
-    let price = oracle::read_price(market, &ctx.accounts.feed)?;
+    let price = oracle::read_price(config, market, &ctx.accounts.feed)?;
     let now_ms = Clock::get()?
         .unix_timestamp
         .checked_mul(1000)
@@ -78,6 +78,9 @@ pub fn place_bet(ctx: Context<PlaceBet>, direction: u8, stake: u64, duration_s: 
         .ts_ms
         .checked_add(duration_s as i64 * 1000)
         .ok_or(WickError::MathOverflow)?;
+    // Belt-and-braces: a bet must always have a real forward-looking window.
+    // (Guaranteed by max_feed_age_ms < min_duration_s*1000, enforced in set_params.)
+    require!(expiry_ms > now_ms, WickError::ExpiryInPast);
     user.bets[slot] = Bet {
         status: BET_STATUS_OPEN,
         direction,
@@ -117,8 +120,10 @@ pub fn place_bet(ctx: Context<PlaceBet>, direction: u8, stake: u64, duration_s: 
     Ok(())
 }
 
-/// Settle an expired bet against the first feed print at/after expiry.
-/// Permissionless: the frontend auto-fires it, and anyone can sweep stragglers.
+/// Settle an expired bet against a print inside the settlement window
+/// [expiry, expiry + resolve_grace_ms]. Permissionless: the frontend auto-fires
+/// it, the daemon sweeps every account, and anyone can settle stragglers. The
+/// upper bound means nobody — bettor included — can cherry-pick a late print.
 #[derive(Accounts)]
 pub struct ResolveBet<'info> {
     pub resolver: Signer<'info>,
@@ -146,8 +151,14 @@ pub fn resolve_bet(ctx: Context<ResolveBet>, bet_idx: u8) -> Result<()> {
     require!(bet.status == BET_STATUS_OPEN, WickError::BetNotOpen);
     require!(bet.market_idx == market.idx, WickError::MarketMismatch);
 
-    let price = oracle::read_price(market, &ctx.accounts.feed)?;
+    let config = &ctx.accounts.config;
+    let price = oracle::read_price(config, market, &ctx.accounts.feed)?;
     require!(price.ts_ms >= bet.expiry_ms, WickError::NotExpired);
+    let window_end = bet
+        .expiry_ms
+        .checked_add(config.resolve_grace_ms as i64)
+        .ok_or(WickError::MathOverflow)?;
+    require!(price.ts_ms <= window_end, WickError::SettlementWindowMissed);
 
     let ord = cmp_prices(price.price, price.expo, bet.strike, bet.expo)?;
     let won = match ord {
@@ -207,6 +218,89 @@ pub fn resolve_bet(ctx: Context<ResolveBet>, bet_idx: u8) -> Result<()> {
         outcome,
         stake: bet.stake,
         payout,
+        strike: bet.strike,
+        settle_price: price.price,
+        expo: price.expo,
+    });
+    Ok(())
+}
+
+/// Void a bet whose settlement window closed with no qualifying print — a dead
+/// or frozen feed, or a missed window. The stake is refunded (push semantics)
+/// and the solvency reserve released, so a single dead feed can never strand a
+/// user's balance behind `open_bets > 0`. Permissionless, like resolve_bet.
+///
+/// Voiding requires BOTH (a) the wall clock to be past expiry + grace + delay,
+/// so live resolvers always get the full window first, and (b) the feed's
+/// current print to be OUTSIDE the window — if a qualifying print is sitting in
+/// the feed, resolve_bet is the only valid path.
+#[derive(Accounts)]
+pub struct VoidBet<'info> {
+    pub resolver: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, Config>,
+    #[account(seeds = [MARKET_SEED, &[market.idx]], bump = market.bump)]
+    pub market: Account<'info, MarketConfig>,
+    #[account(mut, seeds = [BOOK_SEED, &[market.idx]], bump = book.bump)]
+    pub book: Account<'info, MarketBook>,
+    #[account(mut, seeds = [HOUSE_SEED], bump = house.bump)]
+    pub house: Account<'info, House>,
+    #[account(mut)]
+    pub user_account: Account<'info, UserAccount>,
+    /// CHECK: pinned to market.feed inside oracle::read_price
+    pub feed: UncheckedAccount<'info>,
+}
+
+pub fn void_bet(ctx: Context<VoidBet>, bet_idx: u8) -> Result<()> {
+    let user = &mut ctx.accounts.user_account;
+    let market = &ctx.accounts.market;
+    let config = &ctx.accounts.config;
+    let bet = *user
+        .bets
+        .get(bet_idx as usize)
+        .ok_or(WickError::BetNotOpen)?;
+    require!(bet.status == BET_STATUS_OPEN, WickError::BetNotOpen);
+    require!(bet.market_idx == market.idx, WickError::MarketMismatch);
+
+    let window_end = bet
+        .expiry_ms
+        .checked_add(config.resolve_grace_ms as i64)
+        .ok_or(WickError::MathOverflow)?;
+    let now_ms = Clock::get()?
+        .unix_timestamp
+        .checked_mul(1000)
+        .ok_or(WickError::MathOverflow)?;
+    require!(now_ms > window_end + VOID_DELAY_MS, WickError::BetNotVoidable);
+
+    let price = oracle::read_price(config, market, &ctx.accounts.feed)?;
+    require!(
+        price.ts_ms < bet.expiry_ms || price.ts_ms > window_end,
+        WickError::BetNotVoidable
+    );
+
+    let house = &mut ctx.accounts.house;
+    house.locked = house.locked.saturating_sub(bet.potential_profit);
+    user.balance = user.balance.checked_add(bet.stake).ok_or(WickError::MathOverflow)?;
+    user.pushes += 1;
+
+    user.bets[bet_idx as usize] = Bet::default();
+    user.open_bets = user.open_bets.saturating_sub(1);
+
+    let book = &mut ctx.accounts.book;
+    if bet.direction == DIRECTION_UP {
+        book.long_open = book.long_open.saturating_sub(bet.stake);
+    } else {
+        book.short_open = book.short_open.saturating_sub(bet.stake);
+    }
+    book.open_bets = book.open_bets.saturating_sub(1);
+
+    emit!(BetResolved {
+        user: user.authority,
+        market_idx: market.idx,
+        bet_idx,
+        outcome: OUTCOME_VOID,
+        stake: bet.stake,
+        payout: bet.stake,
         strike: bet.strike,
         settle_price: price.price,
         expo: price.expo,

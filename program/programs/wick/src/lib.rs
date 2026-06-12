@@ -9,7 +9,7 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("6urV1Zb4ASHuPzjqHSHnxgpxoE9F3SRxVnSE9DCaZtTC");
+declare_id!("HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj");
 
 #[ephemeral]
 #[program]
@@ -17,8 +17,45 @@ pub mod wick {
     use super::*;
 
     // ── Admin (L1) ────────────────────────────────────────────────
-    pub fn initialize(ctx: Context<Initialize>, price_authority: Pubkey) -> Result<()> {
-        instructions::admin::initialize(ctx, price_authority)
+    pub fn initialize(
+        ctx: Context<Initialize>,
+        price_authority: Pubkey,
+        oracle_program: Pubkey,
+    ) -> Result<()> {
+        instructions::admin::initialize(ctx, price_authority, oracle_program)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_params(
+        ctx: Context<SetParams>,
+        payout_bps: u16,
+        min_bet: u64,
+        max_bet: u64,
+        min_duration_s: u16,
+        max_duration_s: u16,
+        max_feed_age_ms: u32,
+        resolve_grace_ms: u32,
+        paused: bool,
+    ) -> Result<()> {
+        instructions::admin::set_params(
+            ctx,
+            payout_bps,
+            min_bet,
+            max_bet,
+            min_duration_s,
+            max_duration_s,
+            max_feed_age_ms,
+            resolve_grace_ms,
+            paused,
+        )
+    }
+
+    pub fn set_market_enabled(
+        ctx: Context<SetMarketEnabled>,
+        idx: u8,
+        enabled: bool,
+    ) -> Result<()> {
+        instructions::admin::set_market_enabled(ctx, idx, enabled)
     }
 
     pub fn create_feed(ctx: Context<CreateFeed>, symbol: [u8; 12]) -> Result<()> {
@@ -96,6 +133,10 @@ pub mod wick {
 
     pub fn resolve_bet(ctx: Context<ResolveBet>, bet_idx: u8) -> Result<()> {
         instructions::er::resolve_bet(ctx, bet_idx)
+    }
+
+    pub fn void_bet(ctx: Context<VoidBet>, bet_idx: u8) -> Result<()> {
+        instructions::er::void_bet(ctx, bet_idx)
     }
 
     pub fn arm_resolution(ctx: Context<ArmResolution>, bet_idx: u8) -> Result<()> {

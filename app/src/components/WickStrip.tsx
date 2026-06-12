@@ -90,14 +90,33 @@ export function WickStrips() {
   const config = useStore((s) => s.config);
   const bets = openBets(user);
 
-  if (bets.length === 0 && pending.length === 0) return null;
+  // A pending strip is optimistic; once its real bet lands via the account
+  // subscription, hide it so the two don't render side by side for a frame.
+  // Match each real bet to at most one pending (same market/dir/stake, placed
+  // at/after the tap) so identical simultaneous taps still each show once.
+  const claimed = new Set<number>();
+  const visiblePending = pending.filter((p) => {
+    const i = bets.findIndex(
+      (b, idx) =>
+        !claimed.has(idx) &&
+        b.marketIdx === p.marketIdx &&
+        b.direction === p.direction &&
+        b.stake === p.stake &&
+        b.placedMs >= p.createdAt - 4000
+    );
+    if (i === -1) return true;
+    claimed.add(i);
+    return false;
+  });
+
+  if (bets.length === 0 && visiblePending.length === 0) return null;
 
   return (
     <div className="wicks">
       {bets.map((b) => (
         <Strip key={`${b.slot}-${b.placedMs}`} bet={b} />
       ))}
-      {pending.map((p) => (
+      {visiblePending.map((p) => (
         <PendingStrip
           key={p.id}
           symbol={config?.markets.find((m) => m.idx === p.marketIdx)?.symbol ?? ""}

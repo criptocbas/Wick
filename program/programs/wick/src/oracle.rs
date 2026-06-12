@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::errors::WickError;
-use crate::state::{MarketConfig, WickFeed, FEED_KIND_PYTH_LAZER, FEED_KIND_WICK};
+use crate::state::{Config, MarketConfig, WickFeed, FEED_KIND_PYTH_LAZER, FEED_KIND_WICK};
 
 pub struct PriceData {
     pub price: i64,
@@ -18,11 +18,16 @@ pub struct PriceData {
 /// client-side fast read; address pinning to `market.feed` is the integrity guard.
 ///
 /// kind 1 — Wick-pushed feeds (our keeper, Flash Trade prices, millisecond timestamps).
-pub fn read_price(market: &MarketConfig, feed_ai: &AccountInfo) -> Result<PriceData> {
+pub fn read_price(config: &Config, market: &MarketConfig, feed_ai: &AccountInfo) -> Result<PriceData> {
     require_keys_eq!(feed_ai.key(), market.feed, WickError::FeedMismatch);
     let data = feed_ai.try_borrow_data()?;
     match market.feed_kind {
         FEED_KIND_PYTH_LAZER => {
+            // Address pinning + owner check: on the ER (the only place bets
+            // execute) these accounts are owned by the oracle program itself.
+            if config.oracle_program != Pubkey::default() {
+                require_keys_eq!(*feed_ai.owner, config.oracle_program, WickError::InvalidFeed);
+            }
             require!(data.len() >= 101, WickError::InvalidFeed);
             let price = i64::from_le_bytes(data[73..81].try_into().unwrap());
             let expo = i32::from_le_bytes(data[89..93].try_into().unwrap());
