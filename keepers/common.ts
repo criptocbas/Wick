@@ -5,14 +5,32 @@ import { AnchorProvider, Program, Wallet } from "@coral-xyz/anchor";
 import BN from "bn.js";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 
-export const BASE_RPC = process.env.BASE_RPC ?? "http://localhost:8899";
-export const BASE_WS = process.env.BASE_WS ?? "ws://localhost:8900";
-export const ER_RPC = process.env.ER_RPC ?? "http://localhost:7799";
-export const ER_WS = process.env.ER_WS ?? "ws://localhost:7800";
-export const VALIDATOR =
-  process.env.ER_VALIDATOR ?? "mAGicPQYBMvcYveUZA5F5UNNwyHvfYh5xkLS2Fr1mev";
-export const DAEMON_PORT = Number(process.env.DAEMON_PORT ?? 8787);
 export const CLUSTER = process.env.CLUSTER ?? "localnet";
+
+/** Sane per-cluster defaults so `CLUSTER=devnet` alone is a complete config. */
+const DEFAULTS =
+  CLUSTER === "devnet"
+    ? {
+        baseRpc: "https://api.devnet.solana.com",
+        baseWs: "wss://api.devnet.solana.com",
+        erRpc: "https://devnet-us.magicblock.app",
+        erWs: "wss://devnet-us.magicblock.app",
+        validator: "MUS3hc9TCw4cGC12vHNoYcCGzJG1txjgQLZWVoeNHNd", // US region
+      }
+    : {
+        baseRpc: "http://localhost:8899",
+        baseWs: "ws://localhost:8900",
+        erRpc: "http://localhost:7799",
+        erWs: "ws://localhost:7800",
+        validator: "mAGicPQYBMvcYveUZA5F5UNNwyHvfYh5xkLS2Fr1mev",
+      };
+
+export const BASE_RPC = process.env.BASE_RPC ?? DEFAULTS.baseRpc;
+export const BASE_WS = process.env.BASE_WS ?? DEFAULTS.baseWs;
+export const ER_RPC = process.env.ER_RPC ?? DEFAULTS.erRpc;
+export const ER_WS = process.env.ER_WS ?? DEFAULTS.erWs;
+export const VALIDATOR = process.env.ER_VALIDATOR ?? DEFAULTS.validator;
+export const DAEMON_PORT = Number(process.env.DAEMON_PORT ?? 8787);
 
 export interface MarketDef {
   idx: number;

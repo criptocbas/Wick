@@ -42,11 +42,18 @@ async function main() {
 
   if (mode !== "bet") return browser.close();
 
-  // place a 10s long
-  await page.evaluate(() => {
-    const chips = [...document.querySelectorAll(".chip")];
-    (chips.find((c) => c.textContent === "10s") as HTMLElement)?.click();
-  });
+  // place a long (duration/stake chips configurable for hedger tests)
+  const durChip = process.env.DUR_CHIP ?? "10s";
+  const stakeChip = process.env.STAKE_CHIP ?? "10";
+  await page.evaluate(
+    (dur, stake) => {
+      const chips = [...document.querySelectorAll(".chip")];
+      (chips.find((c) => c.textContent === dur) as HTMLElement)?.click();
+      (chips.find((c) => c.textContent === stake) as HTMLElement)?.click();
+    },
+    durChip,
+    stakeChip
+  );
   await page.click(".dir-btn.long");
   console.log("placed LONG");
   await sleep(2600);
