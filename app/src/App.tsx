@@ -20,6 +20,8 @@ export default function App() {
   const bootError = useStore((s) => s.bootError);
   const subsRef = useRef<number[]>([]);
   const resolvingRef = useRef<Set<string>>(new Set());
+  const armedRef = useRef<Set<string>>(new Set());
+  const cranksRef = useRef(true); // disabled after first arm failure on this ER
 
   // ── boot ────────────────────────────────────────────────────
   useEffect(() => {
@@ -105,6 +107,18 @@ export default function App() {
         const market = cfg.markets.find((m) => m.idx === bet.marketIdx);
         const feed = market ? s.feeds[market.symbol] : undefined;
         if (!market || !feed) continue;
+
+        // Best-effort: arm an on-chain crank once per bet so settlement is
+        // autonomous even if this client goes away. Disabled after one failure
+        // on ERs that don't support user cranks (the resolver below is the path).
+        const armKey = `${bet.slot}:${bet.placedMs}`;
+        if (cranksRef.current && !armedRef.current.has(armKey)) {
+          armedRef.current.add(armKey);
+          client.armResolution(market, bet.slot).catch(() => {
+            cranksRef.current = false;
+          });
+        }
+
         if (feed.tsMs < bet.expiryMs) continue;
         const key = `${bet.slot}:${bet.placedMs}`;
         if (resolvingRef.current.has(key)) continue;

@@ -31,11 +31,6 @@ pub struct PlaceBet<'info> {
     pub user_account: Account<'info, UserAccount>,
     /// CHECK: pinned to market.feed inside oracle::read_price
     pub feed: UncheckedAccount<'info>,
-    /// CHECK: the Magic program — schedules the resolution crank
-    pub magic_program: UncheckedAccount<'info>,
-    /// CHECK: the Magic context / task context account
-    #[account(mut)]
-    pub magic_context: UncheckedAccount<'info>,
 }
 
 pub fn place_bet(ctx: Context<PlaceBet>, direction: u8, stake: u64, duration_s: u32) -> Result<()> {
@@ -116,24 +111,9 @@ pub fn place_bet(ctx: Context<PlaceBet>, direction: u8, stake: u64, duration_s: 
         placed_ms: price.ts_ms,
         expiry_ms,
     });
-
-    // Atomically schedule this bet's autonomous on-chain resolution at expiry.
-    schedule_resolution(
-        &ResolutionAccounts {
-            payer: &ctx.accounts.operator.to_account_info(),
-            config: &ctx.accounts.config.to_account_info(),
-            market: &ctx.accounts.market.to_account_info(),
-            book: &ctx.accounts.book.to_account_info(),
-            house: &ctx.accounts.house.to_account_info(),
-            user_account: &ctx.accounts.user_account.to_account_info(),
-            feed: &ctx.accounts.feed.to_account_info(),
-            magic_program: &ctx.accounts.magic_program.to_account_info(),
-            magic_context: &ctx.accounts.magic_context.to_account_info(),
-        },
-        slot as u8,
-        price.ts_ms,
-        expiry_ms,
-    )?;
+    // Resolution is scheduled separately via `arm_resolution` (a best-effort,
+    // decoupled crank schedule) so placement never depends on the ER's crank
+    // build. See arm_resolution / schedule_resolution below.
     Ok(())
 }
 
@@ -349,6 +329,9 @@ pub fn schedule_resolution(
     let ix_data = bincode::serialize(&MagicBlockInstruction::ScheduleTask(args))
         .map_err(|_| WickError::InvalidFeed)?;
 
+    // Outer account list = accounts the Magic program must LOAD to store/run the
+    // task; only payer (signer) and the task context are writable. Per-account
+    // execution writability is carried by the embedded resolve_ix metas above.
     let schedule_ix = Instruction::new_with_bytes(
         MAGIC_PROGRAM_ID,
         &ix_data,
@@ -357,9 +340,9 @@ pub fn schedule_resolution(
             AccountMeta::new(a.magic_context.key(), false),
             AccountMeta::new_readonly(a.config.key(), false),
             AccountMeta::new_readonly(a.market.key(), false),
-            AccountMeta::new(a.book.key(), false),
-            AccountMeta::new(a.house.key(), false),
-            AccountMeta::new(a.user_account.key(), false),
+            AccountMeta::new_readonly(a.book.key(), false),
+            AccountMeta::new_readonly(a.house.key(), false),
+            AccountMeta::new_readonly(a.user_account.key(), false),
             AccountMeta::new_readonly(a.feed.key(), false),
         ],
     );

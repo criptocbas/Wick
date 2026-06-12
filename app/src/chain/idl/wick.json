@@ -8,6 +8,89 @@
   },
   "instructions": [
     {
+      "name": "arm_resolution",
+      "discriminator": [
+        160,
+        231,
+        113,
+        16,
+        128,
+        132,
+        217,
+        190
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "market"
+        },
+        {
+          "name": "book",
+          "writable": true
+        },
+        {
+          "name": "house",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  104,
+                  111,
+                  117,
+                  115,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_account",
+          "writable": true
+        },
+        {
+          "name": "feed"
+        },
+        {
+          "name": "magic_program"
+        },
+        {
+          "name": "magic_context",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "bet_idx",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "commit_user",
       "discriminator": [
         166,

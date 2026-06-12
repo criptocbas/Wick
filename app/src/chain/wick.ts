@@ -368,11 +368,29 @@ export class WickClient {
         house: this.housePda,
         userAccount: this.userPda,
         feed: new PublicKey(market.feed),
+      })
+      .transaction();
+    return this.sendER(tx);
+  }
+
+  /** Best-effort: schedule an on-chain crank to auto-resolve a bet at expiry.
+   *  Where the ER supports user cranks this makes settlement fully autonomous;
+   *  where it doesn't, this throws and the optimistic resolver remains the path. */
+  async armResolution(market: MarketInfo, betIdx: number): Promise<void> {
+    const tx = await this.program.methods
+      .armResolution(betIdx)
+      .accounts({
+        payer: this.wallet.publicKey,
+        market: this.marketPda(market.idx),
+        book: this.bookPda(market.idx),
+        house: this.housePda,
+        userAccount: this.userPda,
+        feed: new PublicKey(market.feed),
         magicProgram: MAGIC_PROGRAM_ID2,
         magicContext: MAGIC_CONTEXT_ID,
       })
       .transaction();
-    return this.sendER(tx);
+    await this.sendER(tx);
   }
 
   async resolveBet(market: MarketInfo, betIdx: number): Promise<Verdict | null> {

@@ -3,7 +3,13 @@
  * arm, no client resolve. Verify the bet settles itself.
  */
 import BN from "bn.js";
-import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import {
+  Keypair,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+  sendAndConfirmTransaction,
+} from "@solana/web3.js";
 import { getOrCreateAssociatedTokenAccount, mintTo } from "@solana/spl-token";
 import { makeCtx, pdas } from "./common";
 
@@ -17,7 +23,15 @@ const SOL = 0;
 
 async function main() {
   const user = Keypair.generate();
-  await ctx.base.confirmTransaction(await ctx.base.requestAirdrop(user.publicKey, 2e9), "confirmed");
+  // fund the user from admin (devnet airdrops throttle)
+  await sendAndConfirmTransaction(
+    ctx.base,
+    new Transaction().add(
+      SystemProgram.transfer({ fromPubkey: ctx.admin.publicKey, toPubkey: user.publicKey, lamports: 50_000_000 })
+    ),
+    [ctx.admin],
+    { commitment: "confirmed" }
+  );
   const cfg: any = await (ctx.program.account as any).config.fetch(P.config);
   const mint = cfg.mint;
   const userPda = PublicKey.findProgramAddressSync(
@@ -33,7 +47,10 @@ async function main() {
   await send(await ctx.program.methods.delegateUser().accounts({ payer: user.publicKey, userAccount: userPda }).remainingAccounts([{ pubkey: VALIDATOR, isSigner: false, isWritable: false }]).transaction());
   await sleep(3000);
 
-  const feed = P.feed("SOL");
+  // use the market's actual pinned feed (oracle on devnet, WickFeed on localnet)
+  const mkt: any = await (ctx.program.account as any).marketConfig.fetch(P.market(SOL));
+  const feed: PublicKey = mkt.feed;
+  console.log("market feed:", feed.toBase58(), "kind:", mkt.feedKind);
   const erSend = async (tx: Transaction) => {
     tx.feePayer = user.publicKey; tx.recentBlockhash = (await ctx.er.getLatestBlockhash()).blockhash; tx.sign(user);
     const s = await ctx.er.sendRawTransaction(tx.serialize(), { skipPreflight: true });
