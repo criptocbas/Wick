@@ -5,6 +5,7 @@ import {
   LAMPORTS_PER_SOL,
   PublicKey,
   Transaction,
+  TransactionInstruction,
 } from "@solana/web3.js";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import idl from "./idl/wick.json";
@@ -408,4 +409,64 @@ export class WickClient {
       .transaction();
     await this.sendER(tx);
   }
+
+  // ── latency duel: the same transaction, ER vs Solana L1 ───────
+
+  /** Send an identical memo tx to a connection, time send→confirmed.
+   *  When `report` is false this is a warm-up (clones the account / primes the
+   *  leader) and the timing is discarded — so the measured race is cold-start-free
+   *  and fair to both layers. */
+  private async raceMemo(
+    conn: Connection,
+    report: boolean,
+    onConfirmed?: (ms: number) => void
+  ): Promise<{ ms: number; sig: string }> {
+    const ix = new TransactionInstruction({
+      keys: [],
+      programId: MEMO_PROGRAM_ID,
+      data: Buffer.from(`wick ${Date.now()}`),
+    });
+    const tx = new Transaction().add(ix);
+    tx.feePayer = this.wallet.publicKey;
+    tx.recentBlockhash = (await conn.getLatestBlockhash("confirmed")).blockhash;
+    await this.wallet.signTransaction(tx);
+    const t0 = performance.now();
+    const sig = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: true });
+    for (;;) {
+      const st = await conn.getSignatureStatus(sig);
+      const c = st.value?.confirmationStatus;
+      const done = c === "confirmed" || c === "finalized";
+      if (done || performance.now() - t0 > 20_000) {
+        const ms = Math.round(performance.now() - t0);
+        if (report) onConfirmed?.(ms);
+        return { ms, sig };
+      }
+      await new Promise((r) => setTimeout(r, 12));
+    }
+  }
+
+  /** Fire the same memo on the ER and on Solana L1 at once; report each as it
+   *  lands. Both lanes are warmed first so neither pays a one-time cold-start.
+   *  `onStart` fires when warm-up is done and the measured race begins. */
+  async latencyDuel(cb: {
+    onStart?: () => void;
+    onEr: (ms: number) => void;
+    onL1: (ms: number) => void;
+  }): Promise<{ er: number; l1: number }> {
+    // warm both layers (clone the burner / prime the leader); discard timing
+    await Promise.all([
+      this.raceMemo(this.er, false).catch(() => null),
+      this.raceMemo(this.base, false).catch(() => null),
+    ]);
+    cb.onStart?.();
+    const [er, l1] = await Promise.all([
+      this.raceMemo(this.er, true, cb.onEr),
+      this.raceMemo(this.base, true, cb.onL1),
+    ]);
+    return { er: er.ms, l1: l1.ms };
+  }
 }
+
+export const MEMO_PROGRAM_ID = new PublicKey(
+  "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
+);

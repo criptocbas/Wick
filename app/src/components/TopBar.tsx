@@ -8,6 +8,7 @@ export default function TopBar({ onSettle }: { onSettle: () => void }) {
   const toggleSound = useStore((s) => s.toggleSound);
   const busy = useStore((s) => s.busy);
   const toggleDesk = useStore((s) => s.toggleDesk);
+  const toggleDuel = useStore((s) => s.toggleDuel);
   const desk = useStore((s) => s.desk);
   const hedgeCount = desk?.positions.length ?? 0;
 
@@ -17,7 +18,11 @@ export default function TopBar({ onSettle }: { onSettle: () => void }) {
         W<span className="tittle">ı</span>ck
       </div>
 
-      <div className="latency-pill" title="last ephemeral rollup confirmation">
+      <button
+        className="latency-pill"
+        onClick={() => toggleDuel(true)}
+        title="race the Ephemeral Rollup against Solana L1"
+      >
         {latency != null ? (
           <>
             rollup <strong className="num">{latency}ms</strong>
@@ -25,7 +30,8 @@ export default function TopBar({ onSettle }: { onSettle: () => void }) {
         ) : (
           "rollup ready"
         )}
-      </div>
+        <span className="latency-vs"> · vs L1 ↗</span>
+      </button>
 
       <div className="topbar-spacer" />
 
