@@ -31,6 +31,11 @@ export function VerdictOverlay() {
           {verdict.outcome === "loss" && `−${fmtMoney(verdict.stake)}`}
           {verdict.outcome === "push" && "stake returned"}
         </div>
+        {verdict.settleMs != null && (
+          <div className="verdict-settle num">
+            settled in <strong>{verdict.settleMs}ms</strong> on the rollup
+          </div>
+        )}
       </div>
     </div>
   );

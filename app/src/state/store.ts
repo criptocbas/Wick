@@ -44,10 +44,26 @@ export interface DeskPosition {
   key: string | null;
 }
 
+export interface HouseLedger {
+  balanceUsd: number;
+  lockedUsd: number;
+  lifetimePnlUsd: number;
+}
+
 export interface DeskState {
   hedger: string | null;
+  house: HouseLedger | null;
+  hedgePnlUsd: number;
   exposure: DeskExposure[];
   positions: DeskPosition[];
+}
+
+/** A point on the live House-book-vs-Hedge P&L chart, accumulated client-side
+ *  from each /desk poll so the risk engine is visible, not just claimed. */
+export interface PnlPoint {
+  t: number;
+  book: number; // house lifetime P&L (the edge)
+  hedge: number; // live Flash hedge unrealized P&L
 }
 
 export interface LeaderRow {
@@ -84,15 +100,21 @@ interface WickStore {
   stake: number; // ui units
   durationS: number;
   pending: PendingBet[];
-  verdict: (Verdict & { id: string }) | null;
+  verdict: (Verdict & { id: string; settleMs?: number }) | null;
   lastLatency: number | null;
+  /** Rolling recent ER confirmation times (placements + settlements) — the
+   *  always-visible proof the rollup is doing real work in tens of ms. */
+  latencies: number[];
   soundOn: boolean;
   toasts: Toast[];
   busy: boolean;
 
   sessions: Record<string, MarketSession>;
   desk: DeskState | null;
+  pnlSeries: PnlPoint[];
   deskOpen: boolean;
+  /** Shared latency-duel result so the ambient strip and the modal stay in sync. */
+  duel: { er: number | null; l1: number | null; running: boolean };
   duelOpen: boolean;
   trustOpen: boolean;
   boardOpen: boolean;
@@ -107,9 +129,9 @@ interface WickStore {
   setDuration(v: number): void;
   addPending(p: PendingBet): void;
   removePending(id: string): void;
-  showVerdict(v: Verdict): void;
+  showVerdict(v: Verdict, settleMs?: number): void;
   clearVerdict(): void;
-  setLatency(ms: number): void;
+  recordLatency(ms: number): void;
   toggleSound(): void;
   toast(text: string, kind?: Toast["kind"]): void;
   dropToast(id: string): void;
@@ -117,6 +139,8 @@ interface WickStore {
   setSessions(s: MarketSession[]): void;
   setDesk(d: DeskState | null): void;
   toggleDesk(open?: boolean): void;
+  /** Race the same tx on the ER and on Solana L1; updates `duel` live. */
+  runDuel(): Promise<void>;
   toggleDuel(open?: boolean): void;
   toggleTrust(open?: boolean): void;
   toggleBoard(open?: boolean): void;
@@ -144,12 +168,15 @@ export const useStore = create<WickStore>((set, get) => ({
   pending: [],
   verdict: null,
   lastLatency: null,
+  latencies: [],
   soundOn: localStorage.getItem("wick:sound") !== "off",
   toasts: [],
   busy: false,
   sessions: {},
   desk: null,
+  pnlSeries: [],
   deskOpen: false,
+  duel: { er: null, l1: null, running: false },
   duelOpen: false,
   trustOpen: false,
   boardOpen: false,
@@ -192,9 +219,11 @@ export const useStore = create<WickStore>((set, get) => ({
   removePending: (id) =>
     set((s) => ({ pending: s.pending.filter((p) => p.id !== id) })),
 
-  showVerdict: (v) => set({ verdict: { ...v, id: crypto.randomUUID() } }),
+  showVerdict: (v, settleMs) =>
+    set({ verdict: { ...v, id: crypto.randomUUID(), settleMs } }),
   clearVerdict: () => set({ verdict: null }),
-  setLatency: (lastLatency) => set({ lastLatency }),
+  recordLatency: (ms) =>
+    set((s) => ({ lastLatency: ms, latencies: [...s.latencies.slice(-7), ms] })),
 
   toggleSound: () => {
     const next = !get().soundOn;
@@ -211,8 +240,39 @@ export const useStore = create<WickStore>((set, get) => ({
   setBusy: (busy) => set({ busy }),
   setSessions: (list) =>
     set({ sessions: Object.fromEntries(list.map((s) => [s.symbol, s])) }),
-  setDesk: (desk) => set({ desk }),
+  setDesk: (desk) =>
+    set((s) => {
+      if (!desk?.house) return { desk };
+      const last = s.pnlSeries[s.pnlSeries.length - 1];
+      const point: PnlPoint = {
+        t: Date.now(),
+        book: desk.house.lifetimePnlUsd,
+        hedge: desk.hedgePnlUsd,
+      };
+      // only append when something actually moved, cap the window
+      const changed =
+        !last || last.book !== point.book || last.hedge !== point.hedge;
+      const pnlSeries = changed
+        ? [...s.pnlSeries.slice(-179), point]
+        : s.pnlSeries;
+      return { desk, pnlSeries };
+    }),
   toggleDesk: (open) => set((s) => ({ deskOpen: open ?? !s.deskOpen })),
+  runDuel: async () => {
+    const { client, duel } = get();
+    if (!client || duel.running) return;
+    set({ duel: { er: null, l1: null, running: true } });
+    try {
+      await client.latencyDuel({
+        onEr: (ms) => set((s) => ({ duel: { ...s.duel, er: ms } })),
+        onL1: (ms) => set((s) => ({ duel: { ...s.duel, l1: ms } })),
+      });
+    } catch {
+      /* whatever lane landed stays shown */
+    } finally {
+      set((s) => ({ duel: { ...s.duel, running: false } }));
+    }
+  },
   toggleDuel: (open) => set((s) => ({ duelOpen: open ?? !s.duelOpen })),
   toggleTrust: (open) => set((s) => ({ trustOpen: open ?? !s.trustOpen })),
   toggleBoard: (open) => set((s) => ({ boardOpen: open ?? !s.boardOpen })),

@@ -1,72 +1,53 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../state/store";
 
-type LaneState = { ms: number | null; running: boolean };
 const ARM = "settling…";
 
 /**
  * The latency duel — the demo's money shot. Fires the SAME transaction on the
  * Ephemeral Rollup and on Solana L1 at the same instant and races them. The ER
  * lands first, gaslessly; L1 lags and charges a fee. This is why 5-second
- * options exist on Wick and nowhere else.
+ * options exist on Wick and nowhere else. The result lives in the store so the
+ * always-visible top-bar strip and this modal show the same numbers.
  */
 export default function LatencyDuel() {
   const open = useStore((s) => s.duelOpen);
   const toggle = useStore((s) => s.toggleDuel);
-  const client = useStore((s) => s.client);
-  const [er, setEr] = useState<LaneState>({ ms: null, running: false });
-  const [l1, setL1] = useState<LaneState>({ ms: null, running: false });
-  const [busy, setBusy] = useState(false);
-  const [warming, setWarming] = useState(false);
-  const tickRef = useRef<number | null>(null);
-  const startRef = useRef(0);
+  const duel = useStore((s) => s.duel);
+  const runDuel = useStore((s) => s.runDuel);
+  const { er, l1, running } = duel;
+
   const [elapsed, setElapsed] = useState(0);
+  const tickRef = useRef<number | null>(null);
 
-  async function run() {
-    if (!client || busy) return;
-    setBusy(true);
-    setWarming(true);
-    setEr({ ms: null, running: true });
-    setL1({ ms: null, running: true });
-    setElapsed(0);
-    try {
-      await client.latencyDuel({
-        onStart: () => {
-          setWarming(false);
-          startRef.current = performance.now();
-          if (tickRef.current) clearInterval(tickRef.current);
-          tickRef.current = window.setInterval(
-            () => setElapsed(performance.now() - startRef.current),
-            16
-          );
-        },
-        onEr: (ms) => setEr({ ms, running: false }),
-        onL1: (ms) => setL1({ ms, running: false }),
-      });
-    } catch {
-      /* one lane may error; whatever landed stays shown */
-    } finally {
-      if (tickRef.current) clearInterval(tickRef.current);
-      setBusy(false);
-      setWarming(false);
-    }
-  }
-
+  // Drive the fill animation off a local clock that starts when a race starts.
   useEffect(() => {
-    if (open && !busy && er.ms === null && l1.ms === null) void run();
+    if (running) {
+      const t0 = performance.now();
+      setElapsed(0);
+      tickRef.current = window.setInterval(() => setElapsed(performance.now() - t0), 16);
+    } else if (tickRef.current) {
+      clearInterval(tickRef.current);
+      tickRef.current = null;
+    }
     return () => {
       if (tickRef.current) clearInterval(tickRef.current);
     };
+  }, [running]);
+
+  // Auto-race the first time the modal is opened with no standing result.
+  useEffect(() => {
+    if (open && !running && er === null && l1 === null) void runDuel();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   if (!open) return null;
 
-  // progress: a lane "fills" over its expected time, then snaps to done
-  const laneFill = (lane: LaneState, expected: number) =>
-    lane.ms != null ? 100 : Math.min((elapsed / expected) * 100, 96);
-  const speedup =
-    er.ms != null && l1.ms != null && er.ms > 0 ? (l1.ms / er.ms).toFixed(1) : null;
+  const laneFill = (ms: number | null, expected: number) =>
+    ms != null ? 100 : Math.min((elapsed / expected) * 100, 96);
+  const speedup = er != null && l1 != null && er > 0 ? (l1 / er).toFixed(1) : null;
+  const laneTime = (ms: number | null) =>
+    ms != null ? `${ms}ms` : running ? ARM : "";
 
   return (
     <div className="duel-scrim" onClick={() => toggle(false)}>
@@ -90,14 +71,12 @@ export default function LatencyDuel() {
           </div>
           <div className="lane-track">
             <div
-              className={`lane-fill er ${er.ms != null ? "done" : ""}`}
+              className={`lane-fill er ${er != null ? "done" : ""}`}
               style={{ width: `${laneFill(er, 500)}%` }}
             />
             <span className="lane-ember er-ember" style={{ left: `${laneFill(er, 500)}%` }} />
           </div>
-          <div className="lane-time num">
-            {er.ms != null ? `${er.ms}ms` : warming ? "warming" : er.running ? ARM : ""}
-          </div>
+          <div className="lane-time num">{laneTime(er)}</div>
         </div>
 
         <div className="lane">
@@ -107,14 +86,12 @@ export default function LatencyDuel() {
           </div>
           <div className="lane-track">
             <div
-              className={`lane-fill l1 ${l1.ms != null ? "done" : ""}`}
+              className={`lane-fill l1 ${l1 != null ? "done" : ""}`}
               style={{ width: `${laneFill(l1, 1600)}%` }}
             />
             <span className="lane-ember l1-ember" style={{ left: `${laneFill(l1, 1600)}%` }} />
           </div>
-          <div className="lane-time num">
-            {l1.ms != null ? `${l1.ms}ms` : warming ? "warming" : l1.running ? ARM : ""}
-          </div>
+          <div className="lane-time num">{laneTime(l1)}</div>
         </div>
 
         <div className="duel-foot">
@@ -129,8 +106,8 @@ export default function LatencyDuel() {
               network round-trip is the floor.
             </span>
           )}
-          <button className="duel-again" onClick={() => void run()} disabled={busy}>
-            {busy ? "racing…" : "Race again"}
+          <button className="duel-again" onClick={() => void runDuel()} disabled={running}>
+            {running ? "racing…" : "Race again"}
           </button>
         </div>
       </div>

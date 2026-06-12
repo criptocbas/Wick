@@ -141,32 +141,74 @@ input:focus-visible {
   flex: 1;
 }
 
-.latency-pill {
-  font-size: 11.5px;
-  color: var(--ink-faint);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  padding: 5px 9px;
-  transition: border-color 0.14s, color 0.14s;
-}
-
-.latency-pill:hover {
-  border-color: var(--line);
+/* ambient ER-vs-L1 duel strip — always visible in the top bar */
+.duel-strip {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
   color: var(--ink-dim);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 11px;
+  transition: border-color 0.14s, background 0.14s;
 }
-
-.latency-pill strong {
-  color: var(--flame);
-  font-weight: 600;
+.duel-strip:hover {
+  border-color: var(--flame);
+  background: var(--flame-soft);
 }
-
-.latency-vs {
+.duel-strip-lane {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.duel-strip-k {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--ink-faint);
-  opacity: 0.7;
 }
-.latency-pill:hover .latency-vs { opacity: 1; }
+.duel-strip-k.flame { color: var(--flame); }
+.duel-strip .num { font-size: 12.5px; font-weight: 600; }
+.duel-strip .num.dim { color: var(--ink-faint); font-weight: 500; }
+.duel-strip-vs {
+  font-size: 10px;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.duel-strip-x {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--flame);
+  padding-left: 3px;
+  border-left: 1px solid var(--line-faint);
+  padding-left: 9px;
+}
+
+/* always-visible Flash hedge badge — the +50% integration, on screen */
+.hedge-badge {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--ink-dim);
+  border: 1px solid oklch(74% 0.145 152 / 0.32);
+  background: oklch(74% 0.145 152 / 0.06);
+  border-radius: 8px;
+  padding: 5px 11px;
+  transition: border-color 0.14s, background 0.14s;
+}
+.hedge-badge:hover {
+  border-color: var(--up);
+  background: var(--up-soft);
+}
+.hedge-badge strong { color: var(--up); font-weight: 700; }
+.hedge-badge .flash-dot { animation: ember-flicker 1.4s linear infinite; }
+@media (max-width: 860px) {
+  .duel-strip-x { display: none; }
+  .hedge-badge { display: none; }
+}
 
 .balance-block {
   text-align: right;
@@ -326,6 +368,49 @@ input:focus-visible {
   color: var(--ink-dim);
 }
 
+/* live rollup latency tape — the ER advantage, always on screen */
+.lat-tape {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+  height: 16px;
+}
+.lat-tape-k {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  line-height: 16px;
+}
+.lat-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+.lat-bar {
+  width: 3px;
+  border-radius: 1px;
+  background: linear-gradient(180deg, var(--flame), var(--flame-deep));
+  opacity: 0.9;
+}
+.lat-tape-v {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--flame);
+  line-height: 16px;
+}
+.lat-tape-tag {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  line-height: 16px;
+}
+@media (max-width: 720px) {
+  .lat-tape-tag { display: none; }
+}
+
 /* wick strips — live bets burning down */
 
 .wicks {
@@ -477,6 +562,17 @@ input:focus-visible {
   color: var(--ink);
 }
 
+.verdict-settle {
+  margin-top: 8px;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  color: var(--ink-faint);
+}
+.verdict-settle strong {
+  color: var(--flame);
+  font-weight: 600;
+}
+
 /* ── controls ───────────────────────────────────────────────── */
 
 .controls {
@@ -581,10 +677,30 @@ input:focus-visible {
 
 /* ── onboarding takeover ────────────────────────────────────── */
 
+/* the live product, dimmed, behind the onboarding card */
+.onboard-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: var(--rail-w) 1fr;
+  opacity: 0.42;
+  filter: saturate(0.85);
+  pointer-events: none;
+  user-select: none;
+}
+.onboard-backdrop .rail { border-right-color: transparent; }
+
 .onboard {
   position: fixed;
   inset: 0;
-  background: var(--bg);
+  /* a soft vignette instead of a flat fill, so the live tape breathes around
+     the card while the text stays crisp */
+  background: radial-gradient(
+    ellipse 70% 60% at 50% 45%,
+    oklch(16.5% 0.012 55 / 0.78),
+    oklch(13.5% 0.01 52 / 0.95) 75%
+  );
   display: grid;
   place-items: center;
   z-index: 50;
@@ -593,6 +709,7 @@ input:focus-visible {
 .onboard-inner {
   max-width: 430px;
   padding: 32px;
+  position: relative;
 }
 
 .onboard h1 {
@@ -627,6 +744,25 @@ input:focus-visible {
   border-radius: 50%;
   background: var(--line);
   flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 7px;
+}
+
+.onboard .step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.onboard .step-hint {
+  font-size: 12px;
+  color: var(--flame);
+  opacity: 0.85;
+}
+.onboard .step-check {
+  color: var(--up);
+  font-size: 13px;
+  align-self: center;
 }
 
 .onboard .step.done .dot { background: var(--up); }
@@ -803,6 +939,71 @@ input:focus-visible {
 .closed-note strong { color: var(--ink); text-transform: capitalize; }
 .closed-note span { font-size: 11px; color: var(--ink-faint); }
 
+/* first-run nudge toward the direction buttons */
+.first-tap-hint {
+  font-size: 13px;
+  color: var(--ink-dim);
+  margin-right: 6px;
+  text-align: right;
+  max-width: 220px;
+  animation: hint-breathe 2.6s ease-in-out infinite;
+}
+.first-tap-hint strong.up { color: var(--up); }
+.first-tap-hint strong.down { color: var(--down); }
+@keyframes hint-breathe {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+@media (max-width: 720px) {
+  .first-tap-hint { display: none; }
+}
+
+/* one-time "why a rollup" coachmark */
+.rollup-note {
+  position: fixed;
+  top: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  max-width: min(560px, calc(100% - 40px));
+  padding: 11px 14px;
+  background: oklch(20.5% 0.015 58 / 0.95);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  box-shadow: var(--shadow-warm);
+  font-size: 13px;
+  line-height: 1.42;
+  color: var(--ink-dim);
+  animation: note-in 0.4s var(--ease-out);
+}
+.rollup-note.closing { animation: note-out 0.32s ease forwards; }
+@keyframes note-in {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes note-out {
+  to { opacity: 0; transform: translate(-50%, -8px); }
+}
+.rollup-note-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--flame);
+  flex-shrink: 0;
+  animation: ember-flicker 1.6s linear infinite;
+}
+.rollup-note-x {
+  color: var(--ink-faint);
+  font-size: 12px;
+  flex-shrink: 0;
+  padding: 2px 4px;
+  transition: color 0.13s;
+}
+.rollup-note-x:hover { color: var(--ink); }
+
 /* ── house desk drawer ──────────────────────────────────────── */
 
 .desk-btn {
@@ -906,6 +1107,68 @@ input:focus-visible {
   color: var(--ink-faint);
 }
 .desk-stat .v { font-size: 21px; font-weight: 600; }
+
+.desk-caveat {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
+
+/* house book P&L vs live hedge P&L — the risk engine, visible */
+.pnl-chart {
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-faint);
+  border-radius: 9px;
+  padding: 12px 13px 11px;
+  margin-bottom: 20px;
+}
+.pnl-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+.pnl-k {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--ink-faint);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.pnl-k::before {
+  content: "";
+  width: 9px;
+  height: 2px;
+  border-radius: 1px;
+  align-self: center;
+}
+.pnl-k.book::before { background: var(--flame); }
+.pnl-k.hedge::before { background: var(--up); }
+.pnl-k b { font-size: 13px; font-weight: 700; color: var(--ink); }
+.pnl-svg {
+  display: block;
+  width: 100%;
+  height: 64px;
+}
+.pnl-zero { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 4; }
+.pnl-line { fill: none; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.pnl-line.book { stroke: var(--flame); }
+.pnl-line.hedge { stroke: var(--up); opacity: 0.9; }
+.pnl-empty {
+  height: 64px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.pnl-caption {
+  margin-top: 9px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
 
 .desk-section-label {
   font-size: 10.5px;

@@ -4,6 +4,7 @@ import { applyExpo, splitPrice } from "../util";
 import { DIRECTION_UP } from "../chain/wick";
 import { WickStrips } from "./WickStrip";
 import { VerdictOverlay } from "./Verdict";
+import LatencyTape from "./LatencyTape";
 
 const WINDOW_MS = 60_000;
 const RIGHT_PAD_FRAC = 0.07;
@@ -215,6 +216,7 @@ export default function PriceStage() {
             last price before the {market?.symbol} market closed
           </div>
         )}
+        <LatencyTape />
       </div>
       <WickStrips />
       <VerdictOverlay />

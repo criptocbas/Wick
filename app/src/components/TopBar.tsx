@@ -3,7 +3,6 @@ import { fmtMoney } from "../util";
 
 export default function TopBar({ onSettle }: { onSettle: () => void }) {
   const user = useStore((s) => s.user);
-  const latency = useStore((s) => s.lastLatency);
   const soundOn = useStore((s) => s.soundOn);
   const toggleSound = useStore((s) => s.toggleSound);
   const busy = useStore((s) => s.busy);
@@ -12,7 +11,13 @@ export default function TopBar({ onSettle }: { onSettle: () => void }) {
   const toggleTrust = useStore((s) => s.toggleTrust);
   const toggleBoard = useStore((s) => s.toggleBoard);
   const desk = useStore((s) => s.desk);
+  const duel = useStore((s) => s.duel);
   const hedgeCount = desk?.positions.length ?? 0;
+  const hedgedUsd = desk?.positions.reduce((s, p) => s + p.sizeUsd, 0) ?? 0;
+  const speedup =
+    duel.er != null && duel.l1 != null && duel.er > 0
+      ? Math.round(duel.l1 / duel.er)
+      : null;
 
   return (
     <header className="topbar">
@@ -20,19 +25,24 @@ export default function TopBar({ onSettle }: { onSettle: () => void }) {
         W<span className="tittle">ı</span>ck
       </div>
 
+      {/* ambient latency duel — the ER advantage, always on screen */}
       <button
-        className="latency-pill"
+        className="duel-strip"
         onClick={() => toggleDuel(true)}
         title="race the Ephemeral Rollup against Solana L1"
       >
-        {latency != null ? (
-          <>
-            rollup <strong className="num">{latency}ms</strong>
-          </>
-        ) : (
-          "rollup ready"
-        )}
-        <span className="latency-vs"> · vs L1 ↗</span>
+        <span className="duel-strip-lane">
+          <span className="duel-strip-k flame">ER</span>
+          <span className="num">{duel.er != null ? `${duel.er}ms` : duel.running ? "…" : "—"}</span>
+        </span>
+        <span className="duel-strip-vs">vs</span>
+        <span className="duel-strip-lane">
+          <span className="duel-strip-k">L1</span>
+          <span className="num dim">
+            {duel.l1 != null ? `${duel.l1}ms` : duel.running ? "…" : "—"}
+          </span>
+        </span>
+        {speedup != null && <span className="duel-strip-x num">{speedup}× faster ↗</span>}
       </button>
 
       <button
@@ -42,6 +52,18 @@ export default function TopBar({ onSettle }: { onSettle: () => void }) {
       >
         ◆ Provably fair
       </button>
+
+      {/* always-visible proof the +50% Flash integration is real */}
+      {hedgeCount > 0 && (
+        <button
+          className="hedge-badge"
+          onClick={() => toggleDesk(true)}
+          title="the house's live offsetting positions on Flash Trade mainnet"
+        >
+          <span className="flash-dot" />
+          hedged <strong className="num">${Math.round(hedgedUsd)}</strong> on Flash Trade
+        </button>
+      )}
 
       <div className="topbar-spacer" />
 

@@ -19,8 +19,9 @@ export default function TradeControls() {
   const soundOn = useStore((s) => s.soundOn);
   const feeds = useStore((s) => s.feeds);
   const sessions = useStore((s) => s.sessions);
-  const { addPending, removePending, setLatency, toast } = useStore.getState();
+  const { addPending, removePending, recordLatency, toast } = useStore.getState();
 
+  const pending = useStore((s) => s.pending);
   const market = config?.markets.find((m) => m.idx === selected);
   const stakeUnits = toUnits(stake);
   const status = market
@@ -33,6 +34,9 @@ export default function TradeControls() {
     !status.closed &&
     user.balance >= stakeUnits &&
     user.openBets < 8;
+  // first-run nudge: a cold visitor lands on a chart with no guidance
+  const showHint =
+    canTrade && !status.closed && (user?.openBets ?? 0) === 0 && pending.length === 0;
 
   const fire = async (direction: number) => {
     if (!client || !market) return;
@@ -48,7 +52,7 @@ export default function TradeControls() {
     if (soundOn) sIgnite();
     try {
       const { ms } = await client.placeBet(market, direction, stakeUnits, durationS);
-      setLatency(ms);
+      recordLatency(ms);
     } catch (e) {
       toast(e instanceof Error ? e.message.slice(0, 140) : "bet failed", "err");
     } finally {
@@ -98,6 +102,13 @@ export default function TradeControls() {
         <div className="closed-note">
           {market?.symbol} market is <strong>{status.reason?.toLowerCase()}</strong>
           <span>opens when the venue reopens</span>
+        </div>
+      )}
+
+      {showHint && (
+        <div className="first-tap-hint">
+          Tap <strong className="up">LONG</strong> or <strong className="down">SHORT</strong> to
+          place your first {durationS}-second option
         </div>
       )}
 

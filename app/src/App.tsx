@@ -15,6 +15,7 @@ import HouseDesk from "./components/HouseDesk";
 import LatencyDuel from "./components/LatencyDuel";
 import TrustPanel from "./components/TrustPanel";
 import Leaderboard from "./components/Leaderboard";
+import RollupNote from "./components/RollupNote";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -103,6 +104,11 @@ export default function App() {
     subsRef.current.push(client.subscribeUser((u) => useStore.getState().setUser(u)));
     client.warm();
     st.setPhase("ready");
+    // Land the ER-vs-L1 speed story in the first few seconds, unprompted, so the
+    // ambient strip is populated before a judge taps anything.
+    if (useStore.getState().duel.er === null) {
+      setTimeout(() => void useStore.getState().runDuel(), 1200);
+    }
   }
 
   // ── auto-resolver: settle expired wicks the moment a print lands ──
@@ -144,11 +150,12 @@ export default function App() {
         if (resolvingRef.current.has(key)) continue;
         resolvingRef.current.add(key);
         try {
-          const verdict = inWindow
+          const { verdict, ms } = inWindow
             ? await client.resolveBet(market, bet.slot)
             : await client.voidBet(market, bet.slot);
+          s.recordLatency(ms);
           if (verdict) {
-            s.showVerdict(verdict);
+            s.showVerdict(verdict, ms);
             if (s.soundOn) {
               if (verdict.outcome === "win") sWin();
               else if (verdict.outcome === "loss") sLoss();
@@ -217,6 +224,12 @@ export default function App() {
   if (phase === "onboard") {
     return (
       <>
+        {/* the live product, dimmed behind the card — feeds are already
+            streaming from boot, so the very first paint proves it's real */}
+        <div className="onboard-backdrop" aria-hidden>
+          <MarketRail />
+          <PriceStage />
+        </div>
         <Onboarding onReady={enterReady} />
         <TrustPanel />
         <Toasts />
@@ -234,6 +247,7 @@ export default function App() {
       <LatencyDuel />
       <TrustPanel />
       <Leaderboard />
+      <RollupNote />
       <Toasts />
     </div>
   );

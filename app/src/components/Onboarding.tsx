@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "../state/store";
 import { toUnits } from "../chain/config";
 
@@ -11,6 +11,13 @@ const STEP_LABELS: Record<StepId, string> = {
   delegate: "Delegate to the ephemeral rollup",
 };
 
+const STEP_HINTS: Record<StepId, string> = {
+  fund: "minting demo wUSDC to a fresh browser wallet…",
+  open: "creating your on-chain account…",
+  deposit: "moving collateral into the L1 escrow vault…",
+  delegate: "handing execution to the rollup — custody stays on L1…",
+};
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export default function Onboarding({ onReady }: { onReady: () => Promise<void> }) {
@@ -21,11 +28,21 @@ export default function Onboarding({ onReady }: { onReady: () => Promise<void> }
   const [done, setDone] = useState<Set<StepId>>(new Set());
   const [now, setNow] = useState<StepId | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+
+  // a live elapsed counter so the wait never reads as "frozen"
+  useEffect(() => {
+    if (!running) return;
+    const t0 = performance.now();
+    const iv = setInterval(() => setElapsed((performance.now() - t0) / 1000), 100);
+    return () => clearInterval(iv);
+  }, [running]);
 
   const run = async () => {
     if (!client || !config) return;
     setRunning(true);
     setError(null);
+    setElapsed(0);
     try {
       const mark = (id: StepId) => setDone((d) => new Set(d).add(id));
 
@@ -100,21 +117,36 @@ export default function Onboarding({ onReady }: { onReady: () => Promise<void> }
             className={`step ${done.has(id) ? "done" : ""} ${now === id ? "now" : ""}`}
           >
             <span className="dot" />
-            {STEP_LABELS[id]}
+            <span className="step-body">
+              {STEP_LABELS[id]}
+              {now === id && <span className="step-hint">{STEP_HINTS[id]}</span>}
+            </span>
+            {done.has(id) && <span className="step-check">✓</span>}
           </div>
         ))}
 
         <button className="btn-flame" onClick={run} disabled={running}>
-          {running ? "Lighting…" : "Light the wick"}
+          {running ? (
+            <>
+              Lighting… <span className="num">{elapsed.toFixed(0)}s</span>
+            </>
+          ) : (
+            "Light the wick"
+          )}
         </button>
         <p className="fine">
-          One click sets up a local burner wallet — no extension, no popups, every
-          trade gasless on the rollup.
+          {running
+            ? "~30s — every step is a real on-chain transaction, no popups, all gasless on the rollup."
+            : "One click sets up a local burner wallet — no extension, no popups, every trade gasless on the rollup."}
         </p>
         <button className="trust-trigger" onClick={() => toggleTrust(true)}>
           Provably fair — why your money is safe ↗
         </button>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error">
+            Couldn't finish setup — {error}. Tap “Light the wick” to retry.
+          </p>
+        )}
       </div>
     </div>
   );

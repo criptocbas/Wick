@@ -1,4 +1,5 @@
 import { useStore } from "../state/store";
+import PnlChart from "./PnlChart";
 
 const fmtUsd = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -41,8 +42,9 @@ export default function HouseDesk() {
 
         <p className="desk-explainer">
           Wick is the counterparty to every position. The desk reads net trader
-          exposure from the rollup and offsets its direction with real perpetuals
-          on Flash Trade mainnet — a live hedge, not a bet against you.
+          flow from the rollup and offsets its <strong>direction</strong> with real
+          Flash Trade mainnet perps — a live directional hedge (it covers net delta,
+          not the full gamma of a binary book).
         </p>
 
         <div className="desk-stat-row">
@@ -55,6 +57,8 @@ export default function HouseDesk() {
             <span className="v num">{positions.length}</span>
           </div>
         </div>
+
+        <PnlChart />
 
         <div className="desk-section-label">Net trader flow</div>
         {exposures.length === 0 ? (
@@ -132,6 +136,9 @@ export default function HouseDesk() {
 
         <div className="desk-foot">
           <span className="flash-dot" /> positions are real, on Flash Trade mainnet
+        </div>
+        <div className="desk-caveat">
+          Demo book is play-money wUSDC; the hedge round-trip is real capital.
         </div>
       </aside>
     </>

@@ -445,7 +445,27 @@ async function deskState() {
     }
   }
 
-  return { hedger: HEDGER_PUBKEY, exposure, positions };
+  // 3) the house ledger from the delegated ER account — lifetime_pnl is the
+  //    edge accumulating; locked is the live solvency reserve.
+  let house: { balanceUsd: number; lockedUsd: number; lifetimePnlUsd: number } | null = null;
+  try {
+    const info = await ctx.er.getAccountInfo(P.house);
+    if (info) {
+      const h: any = ctx.program.coder.accounts.decode("house", info.data as Buffer);
+      house = {
+        balanceUsd: h.balance.toNumber() / 1e6,
+        lockedUsd: h.locked.toNumber() / 1e6,
+        lifetimePnlUsd: h.lifetimePnl.toNumber() / 1e6,
+      };
+    }
+  } catch {
+    /* house may be briefly unreadable */
+  }
+
+  // 4) the hedge's live unrealized P&L (sum of real Flash position P&L)
+  const hedgePnlUsd = positions.reduce((s, p) => s + (Number(p.pnlUsd) || 0), 0);
+
+  return { hedger: HEDGER_PUBKEY, house, hedgePnlUsd, exposure, positions };
 }
 
 /** Top players by streak/PnL, read from on-chain UserAccounts. Delegated
