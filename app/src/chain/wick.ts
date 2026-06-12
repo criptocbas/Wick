@@ -208,6 +208,24 @@ export class WickClient {
     void this.getErBlockhash();
   }
 
+  /** Wait until the user account is fully delegated AND live on the ER, so the
+   *  first trade doesn't race the delegation propagating into the rollup. */
+  async waitUntilTradeReady(timeoutMs = 25_000): Promise<boolean> {
+    const t0 = performance.now();
+    while (performance.now() - t0 < timeoutMs) {
+      try {
+        if ((await this.isDelegated()) && (await this.fetchUser("er"))) {
+          // a delegated, ER-visible account is writable on the rollup
+          return true;
+        }
+      } catch {
+        /* keep polling */
+      }
+      await new Promise((r) => setTimeout(r, 600));
+    }
+    return false;
+  }
+
   /** Send to the ER, return { sig, ms }. */
   async sendER(tx: Transaction): Promise<{ sig: string; ms: number }> {
     tx.feePayer = this.wallet.publicKey;
@@ -254,13 +272,36 @@ export class WickClient {
 
   async sendBase(tx: Transaction): Promise<string> {
     tx.feePayer = this.wallet.publicKey;
-    tx.recentBlockhash = (await this.base.getLatestBlockhash()).blockhash;
+    const { blockhash, lastValidBlockHeight } = await this.base.getLatestBlockhash();
+    tx.recentBlockhash = blockhash;
     await this.wallet.signTransaction(tx);
     const sig = await this.base.sendRawTransaction(tx.serialize(), {
       skipPreflight: true,
     });
-    await this.base.confirmTransaction(sig, "confirmed");
+    const conf = await this.base.confirmTransaction(
+      { signature: sig, blockhash, lastValidBlockHeight },
+      "confirmed"
+    );
+    if (conf.value.err) {
+      throw new Error(`L1 tx failed: ${JSON.stringify(conf.value.err)}`);
+    }
     return sig;
+  }
+
+  /** Burner's wUSDC balance (UI units). */
+  async tokenBalance(): Promise<number> {
+    const res = await this.base.getTokenAccountBalance(this.ata).catch(() => null);
+    return res?.value.uiAmount ?? 0;
+  }
+
+  /** Poll until the faucet's wUSDC has actually landed before depositing. */
+  async waitForFunding(timeoutMs = 20_000): Promise<boolean> {
+    const t0 = performance.now();
+    while (performance.now() - t0 < timeoutMs) {
+      if ((await this.tokenBalance()) > 0) return true;
+      await new Promise((r) => setTimeout(r, 600));
+    }
+    return false;
   }
 
   // ── account state ─────────────────────────────────────────────
@@ -359,18 +400,32 @@ export class WickClient {
     stakeUnits: number,
     durationS: number
   ): Promise<{ sig: string; ms: number }> {
-    const tx = await this.program.methods
-      .placeBet(direction, new BN(stakeUnits), durationS)
-      .accounts({
-        operator: this.wallet.publicKey,
-        market: this.marketPda(market.idx),
-        book: this.bookPda(market.idx),
-        house: this.housePda,
-        userAccount: this.userPda,
-        feed: new PublicKey(market.feed),
-      })
-      .transaction();
-    return this.sendER(tx);
+    const build = () =>
+      this.program.methods
+        .placeBet(direction, new BN(stakeUnits), durationS)
+        .accounts({
+          operator: this.wallet.publicKey,
+          market: this.marketPda(market.idx),
+          book: this.bookPda(market.idx),
+          house: this.housePda,
+          userAccount: this.userPda,
+          feed: new PublicKey(market.feed),
+        })
+        .transaction();
+    // The first trade can race the user delegation propagating into the ER
+    // (transiently "InvalidWritableAccount"); retry briefly before surfacing.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.sendER(await build());
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (attempt < 4 && /InvalidWritableAccount|not.*delegat/i.test(msg)) {
+          await new Promise((r) => setTimeout(r, 1200));
+          continue;
+        }
+        throw e;
+      }
+    }
   }
 
   /** Best-effort: schedule an on-chain crank to auto-resolve a bet at expiry.

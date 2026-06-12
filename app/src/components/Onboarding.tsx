@@ -29,25 +29,33 @@ export default function Onboarding({ onReady }: { onReady: () => Promise<void> }
       const mark = (id: StepId) => setDone((d) => new Set(d).add(id));
 
       setNow("fund");
-      const sol = await client.solBalance();
-      if (sol < 0.05) {
+      if ((await client.tokenBalance()) < 1) {
         const res = await fetch(`${config.daemon}/faucet`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ wallet: client.wallet.publicKey.toBase58() }),
         });
         if (!res.ok) throw new Error(`faucet: ${await res.text()}`);
-        await sleep(800);
+        // wait for the wUSDC to actually land before depositing
+        if (!(await client.waitForFunding())) {
+          throw new Error("faucet funds did not arrive — try again");
+        }
       }
       mark("fund");
 
       setNow("open");
       if (!(await client.userExists())) await client.initUser();
+      // the account may lag the init confirmation on RPC — wait for it
+      let user = await client.fetchUser("base");
+      for (let i = 0; i < 10 && !user; i++) {
+        await sleep(600);
+        user = await client.fetchUser("base");
+      }
       mark("open");
 
       setNow("deposit");
-      const user = await client.fetchUser("base");
-      if (user && user.balance < toUnits(1)) {
+      // deposit unless the account is already funded (idempotent re-runs)
+      if (!user || user.balance < toUnits(1)) {
         await client.deposit(toUnits(1000));
       }
       mark("deposit");
@@ -55,8 +63,9 @@ export default function Onboarding({ onReady }: { onReady: () => Promise<void> }
       setNow("delegate");
       if (!(await client.isDelegated())) {
         await client.delegateUser();
-        await sleep(2500);
       }
+      // wait for the delegation to actually land in the rollup before trading
+      await client.waitUntilTradeReady();
       mark("delegate");
 
       setNow(null);

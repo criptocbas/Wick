@@ -25,7 +25,7 @@ async function main() {
   await send(await ctx.program.methods.initUser(user.publicKey).accounts({ authority: user.publicKey }).transaction());
   await send(await ctx.program.methods.deposit(new BN(1e8)).accounts({ authority: user.publicKey, from: ata.address }).transaction());
   await send(await ctx.program.methods.delegateUser().accounts({ payer: user.publicKey, userAccount: userPda }).remainingAccounts([{ pubkey: VALIDATOR, isSigner: false, isWritable: false }]).transaction());
-  await sleep(3000);
+  await sleep(8000);
   const mkt: any = await (ctx.program.account as any).marketConfig.fetch(P.market(SOL));
   const feed: PublicKey = mkt.feed;
   const erSend = async (tx: Transaction, label: string) => {
