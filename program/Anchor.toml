@@ -6,10 +6,10 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-wick = "HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj"
+wick = "G6Biewd4imM1depq2WpJNomAhM63Y6DVjNYsZWHnAWdi"
 
 [programs.devnet]
-wick = "HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj"
+wick = "G6Biewd4imM1depq2WpJNomAhM63Y6DVjNYsZWHnAWdi"
 
 [provider]
 cluster = "localnet"

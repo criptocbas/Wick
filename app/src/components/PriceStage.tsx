@@ -131,9 +131,11 @@ export default function PriceStage() {
         ctx.fillStyle = zone;
         ctx.fillRect(0, isUp ? y - 90 : y, w, 90);
 
+        // touch barriers are a solid, brighter target line; binary strikes dashed
+        const isTouch = b.kind === 1;
         ctx.strokeStyle = col;
-        ctx.lineWidth = 1;
-        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = isTouch ? 1.5 : 1;
+        ctx.setLineDash(isTouch ? [] : [5, 5]);
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(w, y);

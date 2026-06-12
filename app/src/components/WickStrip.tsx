@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useStore, openBets } from "../state/store";
 import { applyExpo, fmtMoney, fmtPrice } from "../util";
-import { DIRECTION_UP, type Bet } from "../chain/wick";
+import { DIRECTION_UP, BET_KIND_TOUCH, type Bet } from "../chain/wick";
 
 /** A live bet: a fuse burning down in real time. */
 function Strip({ bet }: { bet: Bet }) {
@@ -41,10 +41,12 @@ function Strip({ bet }: { bet: Bet }) {
   }, [bet.expiryMs, bet.placedMs]);
 
   const isUp = bet.direction === DIRECTION_UP;
-  const strike = applyExpo(bet.strike, bet.expo);
+  const isTouch = bet.kind === BET_KIND_TOUCH;
+  const level = applyExpo(bet.strike, bet.expo);
+  const verb = isTouch ? "TOUCH" : isUp ? "LONG" : "SHORT";
 
   return (
-    <div className="wick-strip" role="status">
+    <div className={`wick-strip ${isTouch ? "touch" : ""}`} role="status">
       <div className="fuse">
         <div className="rope" />
         <div ref={burnRef} className="burn" />
@@ -52,13 +54,14 @@ function Strip({ bet }: { bet: Bet }) {
       </div>
       <div className="row">
         <span className={`dir ${isUp ? "up" : "down"}`}>
-          {isUp ? "▲ LONG" : "▼ SHORT"} {market?.symbol}
+          {isUp ? "▲" : "▼"} {verb} {market?.symbol}
         </span>
         <span ref={countRef} className="countdown num" />
       </div>
       <div className="row">
         <span className="meta num">
-          {fmtMoney(bet.stake)} @ {fmtPrice(strike, market?.display ?? 2)}
+          {fmtMoney(bet.stake)} {isTouch ? "· touch" : "@"}{" "}
+          {fmtPrice(level, market?.display ?? 2)}
         </span>
         <span className="meta num">→ {fmtMoney(bet.stake + bet.potentialProfit)}</span>
       </div>

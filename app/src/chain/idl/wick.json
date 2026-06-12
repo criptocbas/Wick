@@ -1,5 +1,5 @@
 {
-  "address": "HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj",
+  "address": "G6Biewd4imM1depq2WpJNomAhM63Y6DVjNYsZWHnAWdi",
   "metadata": {
     "name": "wick",
     "version": "0.1.0",
@@ -81,6 +81,81 @@
         {
           "name": "magic_context",
           "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "bet_idx",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "check_touch",
+      "discriminator": [
+        71,
+        231,
+        3,
+        67,
+        151,
+        87,
+        78,
+        210
+      ],
+      "accounts": [
+        {
+          "name": "resolver",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "market"
+        },
+        {
+          "name": "book",
+          "writable": true
+        },
+        {
+          "name": "house",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  104,
+                  111,
+                  117,
+                  115,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_account",
+          "writable": true
+        },
+        {
+          "name": "feed"
         }
       ],
       "args": [
@@ -332,38 +407,38 @@
             "program": {
               "kind": "const",
               "value": [
-                245,
-                166,
-                38,
-                191,
-                122,
-                23,
-                169,
+                224,
+                51,
+                83,
+                183,
+                151,
+                66,
+                187,
+                252,
+                170,
+                168,
+                117,
+                224,
                 88,
-                213,
-                160,
-                55,
-                210,
-                123,
-                185,
-                121,
-                30,
-                145,
-                210,
-                157,
-                110,
-                136,
+                24,
+                221,
+                168,
+                1,
+                2,
+                25,
+                234,
+                64,
+                20,
+                139,
                 32,
-                223,
-                93,
-                128,
-                58,
-                203,
-                76,
-                107,
-                114,
-                150,
-                40
+                47,
+                50,
+                77,
+                9,
+                85,
+                42,
+                247,
+                221
               ]
             }
           }
@@ -445,7 +520,7 @@
         },
         {
           "name": "owner_program",
-          "address": "HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj"
+          "address": "G6Biewd4imM1depq2WpJNomAhM63Y6DVjNYsZWHnAWdi"
         },
         {
           "name": "delegation_program",
@@ -523,38 +598,38 @@
             "program": {
               "kind": "const",
               "value": [
-                245,
-                166,
-                38,
-                191,
-                122,
-                23,
-                169,
+                224,
+                51,
+                83,
+                183,
+                151,
+                66,
+                187,
+                252,
+                170,
+                168,
+                117,
+                224,
                 88,
-                213,
-                160,
-                55,
-                210,
-                123,
-                185,
-                121,
-                30,
-                145,
-                210,
-                157,
-                110,
-                136,
+                24,
+                221,
+                168,
+                1,
+                2,
+                25,
+                234,
+                64,
+                20,
+                139,
                 32,
-                223,
-                93,
-                128,
-                58,
-                203,
-                76,
-                107,
-                114,
-                150,
-                40
+                47,
+                50,
+                77,
+                9,
+                85,
+                42,
+                247,
+                221
               ]
             }
           }
@@ -636,7 +711,7 @@
         },
         {
           "name": "owner_program",
-          "address": "HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj"
+          "address": "G6Biewd4imM1depq2WpJNomAhM63Y6DVjNYsZWHnAWdi"
         },
         {
           "name": "delegation_program",
@@ -719,38 +794,38 @@
             "program": {
               "kind": "const",
               "value": [
-                245,
-                166,
-                38,
-                191,
-                122,
-                23,
-                169,
+                224,
+                51,
+                83,
+                183,
+                151,
+                66,
+                187,
+                252,
+                170,
+                168,
+                117,
+                224,
                 88,
-                213,
-                160,
-                55,
-                210,
-                123,
-                185,
-                121,
-                30,
-                145,
-                210,
-                157,
-                110,
-                136,
+                24,
+                221,
+                168,
+                1,
+                2,
+                25,
+                234,
+                64,
+                20,
+                139,
                 32,
-                223,
-                93,
-                128,
-                58,
-                203,
-                76,
-                107,
-                114,
-                150,
-                40
+                47,
+                50,
+                77,
+                9,
+                85,
+                42,
+                247,
+                221
               ]
             }
           }
@@ -832,7 +907,7 @@
         },
         {
           "name": "owner_program",
-          "address": "HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj"
+          "address": "G6Biewd4imM1depq2WpJNomAhM63Y6DVjNYsZWHnAWdi"
         },
         {
           "name": "delegation_program",
@@ -887,38 +962,38 @@
             "program": {
               "kind": "const",
               "value": [
-                245,
-                166,
-                38,
-                191,
-                122,
-                23,
-                169,
+                224,
+                51,
+                83,
+                183,
+                151,
+                66,
+                187,
+                252,
+                170,
+                168,
+                117,
+                224,
                 88,
-                213,
-                160,
-                55,
-                210,
-                123,
-                185,
-                121,
-                30,
-                145,
-                210,
-                157,
-                110,
-                136,
+                24,
+                221,
+                168,
+                1,
+                2,
+                25,
+                234,
+                64,
+                20,
+                139,
                 32,
-                223,
-                93,
-                128,
-                58,
-                203,
-                76,
-                107,
-                114,
-                150,
-                40
+                47,
+                50,
+                77,
+                9,
+                85,
+                42,
+                247,
+                221
               ]
             }
           }
@@ -1000,7 +1075,7 @@
         },
         {
           "name": "owner_program",
-          "address": "HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj"
+          "address": "G6Biewd4imM1depq2WpJNomAhM63Y6DVjNYsZWHnAWdi"
         },
         {
           "name": "delegation_program",
@@ -1456,6 +1531,96 @@
         },
         {
           "name": "duration_s",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "place_touch_bet",
+      "discriminator": [
+        136,
+        110,
+        106,
+        239,
+        94,
+        222,
+        208,
+        251
+      ],
+      "accounts": [
+        {
+          "name": "operator",
+          "docs": [
+            "Wallet authority or the registered session key."
+          ],
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "market"
+        },
+        {
+          "name": "book",
+          "writable": true
+        },
+        {
+          "name": "house",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  104,
+                  111,
+                  117,
+                  115,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_account",
+          "writable": true
+        },
+        {
+          "name": "feed"
+        }
+      ],
+      "args": [
+        {
+          "name": "direction",
+          "type": "u8"
+        },
+        {
+          "name": "stake",
+          "type": "u64"
+        },
+        {
+          "name": "duration_s",
+          "type": "u32"
+        },
+        {
+          "name": "barrier_bps",
           "type": "u32"
         }
       ]
@@ -2339,6 +2504,21 @@
       "code": 6022,
       "name": "InvalidParams",
       "msg": "Invalid protocol parameters"
+    },
+    {
+      "code": 6023,
+      "name": "InvalidBarrier",
+      "msg": "Barrier distance is not one of the allowed presets"
+    },
+    {
+      "code": 6024,
+      "name": "NotTouchBet",
+      "msg": "Bet is not a one-touch barrier option"
+    },
+    {
+      "code": 6025,
+      "name": "NotTouched",
+      "msg": "Barrier has not been touched in the live window"
     }
   ],
   "types": [
@@ -2360,7 +2540,10 @@
             "type": "u8"
           },
           {
-            "name": "_pad",
+            "name": "kind",
+            "docs": [
+              "BET_KIND_BINARY or BET_KIND_TOUCH."
+            ],
             "type": "u8"
           },
           {
@@ -2373,6 +2556,10 @@
           },
           {
             "name": "strike",
+            "docs": [
+              "BINARY: the strike price. TOUCH: the barrier price (direction = which",
+              "side: UP = barrier above the entry, DOWN = barrier below)."
+            ],
             "type": "i64"
           },
           {

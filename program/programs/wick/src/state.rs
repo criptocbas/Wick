@@ -22,6 +22,26 @@ pub const BET_STATUS_OPEN: u8 = 1;
 pub const DIRECTION_DOWN: u8 = 0;
 pub const DIRECTION_UP: u8 = 1;
 
+/// Bet flavors. A BINARY bet compares strike vs the settle print at expiry; a
+/// TOUCH bet (one-touch barrier option) wins the instant the price reaches the
+/// barrier at any in-window print, and loses if it never does. TOUCH needs
+/// continuous in-window monitoring — uneconomical on L1, ~free on the ER.
+pub const BET_KIND_BINARY: u8 = 0;
+pub const BET_KIND_TOUCH: u8 = 1;
+
+/// Allowed barrier distances (bps from the strike-time price) and their flat
+/// demo payouts — farther barrier is harder to touch, so it pays more. These
+/// are intuitive demo odds, not a vol-calibrated touch-probability model.
+pub fn touch_payout_bps(barrier_bps: u32) -> Option<u16> {
+    match barrier_bps {
+        10 => Some(14_000),  // 0.10% away → 1.4x
+        25 => Some(19_000),  // 0.25% away → 1.9x
+        50 => Some(30_000),  // 0.50% away → 3.0x
+        100 => Some(60_000), // 1.00% away → 6.0x
+        _ => None,
+    }
+}
+
 pub const OUTCOME_LOSS: u8 = 0;
 pub const OUTCOME_WIN: u8 = 1;
 pub const OUTCOME_PUSH: u8 = 2;
@@ -102,9 +122,12 @@ pub struct Bet {
     pub status: u8,
     pub direction: u8,
     pub market_idx: u8,
-    pub _pad: u8,
+    /// BET_KIND_BINARY or BET_KIND_TOUCH.
+    pub kind: u8,
     pub stake: u64,
     pub potential_profit: u64,
+    /// BINARY: the strike price. TOUCH: the barrier price (direction = which
+    /// side: UP = barrier above the entry, DOWN = barrier below).
     pub strike: i64,
     pub expo: i32,
     pub placed_ms: i64,

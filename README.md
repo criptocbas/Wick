@@ -25,13 +25,19 @@ user can permissionlessly undelegate and withdraw even if every Wick server disa
 
 What makes Wick more than a tap-to-trade toy:
 
+- **One-touch options that *need* the rollup** — alongside settle-at-expiry binaries, Wick
+  offers *one-touch barrier options*: "will SOL **touch** $X in the next 10s," which win the
+  instant the price reaches the barrier. That requires monitoring the price continuously across
+  the whole window — gasless and ~free on the ER, but uneconomical on L1 (a gas-charged keeper
+  check per tick). This is the clearest thing Wick does that's *impossible on the base layer*.
 - **Provable custody** — real USDC stays in an L1 vault PDA; only accounting integers are
   delegated. You can never lose more than your stake, and you can always withdraw.
 - **Tamper-evident settlement** — a bet settles only against an oracle print inside its
   settlement window, so nobody (not even the bettor) can wait for a luckier later price.
 - **A real hedge desk** — net exposure is offset with live Flash Trade mainnet perps, not a
   paper hedge. The hedge wallet is a public address in the app's trust panel.
-- **One published edge** — a win pays 1.9× the stake. No hidden spread, no feed shading.
+- **One published edge** — a binary win pays 1.9× the stake; one-touch pays 1.4×–6× scaled by
+  barrier distance. No hidden spread, no feed shading.
 
 ## Architecture
 
@@ -52,8 +58,9 @@ What makes Wick more than a tap-to-trade toy:
 
 - **`program/`** — the Anchor program (Anchor 1.0.2, `ephemeral-rollups-sdk` 0.14.x).
   Escrowed balances, per-market books, house solvency reserve, windowed oracle settlement,
-  void-on-dead-feed refunds, admin params/pause, full delegate → trade → commit → undelegate
-  lifecycle. Devnet program ID **`HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj`**.
+  **one-touch barrier options** (`place_touch_bet` / `check_touch`), void-on-dead-feed refunds,
+  admin params/pause, full delegate → trade → commit → undelegate lifecycle. Devnet program ID
+  **`G6Biewd4imM1depq2WpJNomAhM63Y6DVjNYsZWHnAWdi`**.
 - **`app/`** — the trading interface. One-tap gasless trading via session keys, optimistic UI,
   live ER WebSocket state, a latency duel (ER vs L1), a "Provably fair" trust panel, and a
   streak leaderboard.
@@ -76,6 +83,11 @@ What makes Wick more than a tap-to-trade toy:
   (`locked`), so every open bet is always fully covered — **solvency by construction**.
 - **Void** — if the feed goes dark and no qualifying print lands in the window, anyone can
   `void_bet` after a short delay to refund the stake. A dead feed can never strand funds.
+- **One-touch** — `place_touch_bet` sets a barrier `barrier_bps` from entry (presets: 0.1% /
+  0.25% / 0.5% / 1%, paying 1.4× / 1.9× / 3× / 6×). `check_touch` is a cheap, permissionless
+  poll that wins the bet the instant an in-window print crosses the barrier; the daemon and the
+  bettor's browser both call it on every observed crossing, so a touch settles in tens of ms.
+  Untouched at expiry, the bet resolves a loss. (Demo odds are flat per tier, not vol-calibrated.)
 - **Settlement is permissionless and runs three ways:** the bettor's own browser, the
   house-run daemon sweeper (a liveness backstop, not a privilege — anyone can run the same
   scan), and an on-chain MagicBlock crank where the rollup supports user-scheduled tasks.
@@ -130,9 +142,10 @@ cd ../keepers && CLUSTER=localnet npm run setup && CLUSTER=localnet PRICE_SOURCE
 ### Tests
 
 ```bash
-cd program && anchor test --skip-local-validator --skip-build --skip-deploy   # full 2-layer lifecycle
+cd program && anchor test --skip-local-validator --skip-build --skip-deploy   # full 2-layer lifecycle (10 tests)
 cd keepers && CLUSTER=devnet npx tsx test-sweep.ts                            # daemon settles a bet, no browser
 cd keepers && CLUSTER=devnet npx tsx test-void.ts                            # frozen feed → stake refunded
+cd keepers && CLUSTER=devnet npx tsx test-touch.ts                           # one-touch: barrier crossing wins live
 ```
 
 ### Arm the live hedger (real Flash mainnet positions)
@@ -149,7 +162,7 @@ cd keepers && HEDGER_KEYPAIR=… CLUSTER=devnet DRY_RUN=0 npm run hedger
 
 Everything is auditable from a block explorer (append `?cluster=devnet` on Solscan):
 
-- **Program** `HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj`
+- **Program** `G6Biewd4imM1depq2WpJNomAhM63Y6DVjNYsZWHnAWdi`
 - **Escrow vault** — the `vault_token` PDA holds every user's and the house's USDC on L1.
 - **Hedge wallet** — the public hedger address shown in the app's "Provably fair" panel; its
   Flash Trade positions are live mainnet perps.

@@ -85,7 +85,7 @@ pub fn place_bet(ctx: Context<PlaceBet>, direction: u8, stake: u64, duration_s: 
         status: BET_STATUS_OPEN,
         direction,
         market_idx: market.idx,
-        _pad: 0,
+        kind: BET_KIND_BINARY,
         stake,
         potential_profit: profit,
         strike: price.price,
@@ -120,10 +120,118 @@ pub fn place_bet(ctx: Context<PlaceBet>, direction: u8, stake: u64, duration_s: 
     Ok(())
 }
 
+/// Open a ONE-TOUCH barrier option. Wins the instant the price reaches the
+/// barrier at any in-window print (checked continuously, gaslessly, on the ER —
+/// uneconomical on L1); loses if expiry arrives untouched. Same accounts and
+/// solvency rules as `place_bet`; the barrier is `barrier_bps` from entry and
+/// the payout scales with that distance.
+pub fn place_touch_bet(
+    ctx: Context<PlaceBet>,
+    direction: u8,
+    stake: u64,
+    duration_s: u32,
+    barrier_bps: u32,
+) -> Result<()> {
+    let config = &ctx.accounts.config;
+    let market = &ctx.accounts.market;
+    require!(!config.paused, WickError::Paused);
+    require!(market.enabled, WickError::MarketDisabled);
+    require!(direction <= DIRECTION_UP, WickError::InvalidFeed);
+    require!(
+        duration_s >= config.min_duration_s as u32 && duration_s <= config.max_duration_s as u32,
+        WickError::InvalidDuration
+    );
+    require!(stake >= config.min_bet, WickError::BetTooSmall);
+    require!(stake <= config.max_bet, WickError::BetTooLarge);
+
+    let payout_bps = touch_payout_bps(barrier_bps).ok_or(WickError::InvalidBarrier)?;
+
+    let user = &mut ctx.accounts.user_account;
+    require!(user.is_operator(&ctx.accounts.operator.key()), WickError::Unauthorized);
+    require!(user.balance >= stake, WickError::InsufficientBalance);
+    let slot = user.free_slot().ok_or(WickError::NoFreeBetSlot)?;
+
+    let price = oracle::read_price(config, market, &ctx.accounts.feed)?;
+    let now_ms = Clock::get()?
+        .unix_timestamp
+        .checked_mul(1000)
+        .ok_or(WickError::MathOverflow)?;
+    require!(
+        now_ms.saturating_sub(price.ts_ms) <= config.max_feed_age_ms as i64,
+        WickError::StaleFeed
+    );
+
+    // barrier = entry price ± barrier_bps (computed in i128 to avoid overflow)
+    let p = price.price as i128;
+    let scaled = if direction == DIRECTION_UP {
+        p.checked_mul(BPS as i128 + barrier_bps as i128)
+    } else {
+        p.checked_mul(BPS as i128 - barrier_bps as i128)
+    }
+    .ok_or(WickError::MathOverflow)?
+        / BPS as i128;
+    let barrier = i64::try_from(scaled).map_err(|_| WickError::MathOverflow)?;
+    require!(barrier > 0, WickError::InvalidBarrier);
+
+    // Solvency: reserve the (larger, distance-scaled) potential profit.
+    let profit = stake
+        .checked_mul(payout_bps as u64 - BPS)
+        .ok_or(WickError::MathOverflow)?
+        / BPS;
+    let house = &mut ctx.accounts.house;
+    let locked = house.locked.checked_add(profit).ok_or(WickError::MathOverflow)?;
+    require!(house.balance >= locked, WickError::InsufficientHouseLiquidity);
+    house.locked = locked;
+
+    user.balance -= stake;
+    user.total_wagered = user.total_wagered.saturating_add(stake);
+    user.open_bets += 1;
+    let expiry_ms = price
+        .ts_ms
+        .checked_add(duration_s as i64 * 1000)
+        .ok_or(WickError::MathOverflow)?;
+    require!(expiry_ms > now_ms, WickError::ExpiryInPast);
+    user.bets[slot] = Bet {
+        status: BET_STATUS_OPEN,
+        direction,
+        market_idx: market.idx,
+        kind: BET_KIND_TOUCH,
+        stake,
+        potential_profit: profit,
+        strike: barrier,
+        expo: price.expo,
+        placed_ms: price.ts_ms,
+        expiry_ms,
+    };
+
+    let book = &mut ctx.accounts.book;
+    if direction == DIRECTION_UP {
+        book.long_open = book.long_open.saturating_add(stake);
+    } else {
+        book.short_open = book.short_open.saturating_add(stake);
+    }
+    book.volume = book.volume.saturating_add(stake);
+    book.open_bets += 1;
+
+    emit!(BetPlaced {
+        user: user.authority,
+        market_idx: market.idx,
+        bet_idx: slot as u8,
+        direction,
+        stake,
+        strike: barrier,
+        expo: price.expo,
+        placed_ms: price.ts_ms,
+        expiry_ms,
+    });
+    Ok(())
+}
+
 /// Settle an expired bet against a print inside the settlement window
 /// [expiry, expiry + resolve_grace_ms]. Permissionless: the frontend auto-fires
 /// it, the daemon sweeps every account, and anyone can settle stragglers. The
 /// upper bound means nobody — bettor included — can cherry-pick a late print.
+/// A TOUCH bet that reaches here was never touched in its window → it loses.
 #[derive(Accounts)]
 pub struct ResolveBet<'info> {
     pub resolver: Signer<'info>,
@@ -160,11 +268,17 @@ pub fn resolve_bet(ctx: Context<ResolveBet>, bet_idx: u8) -> Result<()> {
         .ok_or(WickError::MathOverflow)?;
     require!(price.ts_ms <= window_end, WickError::SettlementWindowMissed);
 
-    let ord = cmp_prices(price.price, price.expo, bet.strike, bet.expo)?;
-    let won = match ord {
-        std::cmp::Ordering::Equal => None, // push
-        std::cmp::Ordering::Greater => Some(bet.direction == DIRECTION_UP),
-        std::cmp::Ordering::Less => Some(bet.direction == DIRECTION_DOWN),
+    let won = if bet.kind == BET_KIND_TOUCH {
+        // Reaching resolution means no in-window print ever touched the barrier
+        // (a touch would have closed the bet via check_touch) → the bet loses.
+        Some(false)
+    } else {
+        let ord = cmp_prices(price.price, price.expo, bet.strike, bet.expo)?;
+        match ord {
+            std::cmp::Ordering::Equal => None, // push
+            std::cmp::Ordering::Greater => Some(bet.direction == DIRECTION_UP),
+            std::cmp::Ordering::Less => Some(bet.direction == DIRECTION_DOWN),
+        }
     };
 
     let house = &mut ctx.accounts.house;
@@ -216,6 +330,74 @@ pub fn resolve_bet(ctx: Context<ResolveBet>, bet_idx: u8) -> Result<()> {
         market_idx: market.idx,
         bet_idx,
         outcome,
+        stake: bet.stake,
+        payout,
+        strike: bet.strike,
+        settle_price: price.price,
+        expo: price.expo,
+    });
+    Ok(())
+}
+
+/// Win a ONE-TOUCH bet the instant the live price reaches its barrier. Reads
+/// the current in-window print and pays out immediately on a crossing; reverts
+/// `NotTouched` otherwise (a cheap, permissionless poll). The daemon and the
+/// bettor's browser both call this on every observed crossing, so a touch
+/// settles in tens of milliseconds — the continuous monitoring an ER makes free.
+pub fn check_touch(ctx: Context<ResolveBet>, bet_idx: u8) -> Result<()> {
+    let user = &mut ctx.accounts.user_account;
+    let market = &ctx.accounts.market;
+    let config = &ctx.accounts.config;
+    let bet = *user.bets.get(bet_idx as usize).ok_or(WickError::BetNotOpen)?;
+    require!(bet.status == BET_STATUS_OPEN, WickError::BetNotOpen);
+    require!(bet.kind == BET_KIND_TOUCH, WickError::NotTouchBet);
+    require!(bet.market_idx == market.idx, WickError::MarketMismatch);
+
+    let price = oracle::read_price(config, market, &ctx.accounts.feed)?;
+    // A touch only counts on a live print: strictly after placement, at/before expiry.
+    require!(
+        price.ts_ms > bet.placed_ms && price.ts_ms <= bet.expiry_ms,
+        WickError::NotTouched
+    );
+
+    let ord = cmp_prices(price.price, price.expo, bet.strike, bet.expo)?;
+    let touched = match bet.direction {
+        DIRECTION_UP => ord != std::cmp::Ordering::Less, // price >= barrier
+        _ => ord != std::cmp::Ordering::Greater,         // price <= barrier
+    };
+    require!(touched, WickError::NotTouched);
+
+    // WIN — identical payout accounting to resolve_bet's win branch.
+    let house = &mut ctx.accounts.house;
+    house.locked = house.locked.saturating_sub(bet.potential_profit);
+    let payout = bet.stake + bet.potential_profit;
+    user.balance = user.balance.checked_add(payout).ok_or(WickError::MathOverflow)?;
+    user.wins += 1;
+    user.streak += 1;
+    user.best_streak = user.best_streak.max(user.streak);
+    user.pnl += bet.potential_profit as i64;
+    house.balance = house
+        .balance
+        .checked_sub(bet.potential_profit)
+        .ok_or(WickError::MathOverflow)?;
+    house.lifetime_pnl -= bet.potential_profit as i64;
+
+    user.bets[bet_idx as usize] = Bet::default();
+    user.open_bets = user.open_bets.saturating_sub(1);
+
+    let book = &mut ctx.accounts.book;
+    if bet.direction == DIRECTION_UP {
+        book.long_open = book.long_open.saturating_sub(bet.stake);
+    } else {
+        book.short_open = book.short_open.saturating_sub(bet.stake);
+    }
+    book.open_bets = book.open_bets.saturating_sub(1);
+
+    emit!(BetResolved {
+        user: user.authority,
+        market_idx: market.idx,
+        bet_idx,
+        outcome: OUTCOME_WIN,
         stake: bet.stake,
         payout,
         strike: bet.strike,

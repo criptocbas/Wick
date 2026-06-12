@@ -99,6 +99,8 @@ interface WickStore {
   selected: number;
   stake: number; // ui units
   durationS: number;
+  betKind: number; // 0 = binary settle, 1 = one-touch
+  barrierBps: number; // touch barrier distance (bps from entry)
   pending: PendingBet[];
   verdict: (Verdict & { id: string; settleMs?: number }) | null;
   lastLatency: number | null;
@@ -127,6 +129,8 @@ interface WickStore {
   select(idx: number): void;
   setStake(v: number): void;
   setDuration(v: number): void;
+  setBetKind(k: number): void;
+  setBarrierBps(b: number): void;
   addPending(p: PendingBet): void;
   removePending(id: string): void;
   showVerdict(v: Verdict, settleMs?: number): void;
@@ -165,6 +169,8 @@ export const useStore = create<WickStore>((set, get) => ({
   selected: 0,
   stake: 10,
   durationS: 10,
+  betKind: 0,
+  barrierBps: 25,
   pending: [],
   verdict: null,
   lastLatency: null,
@@ -215,6 +221,8 @@ export const useStore = create<WickStore>((set, get) => ({
   select: (selected) => set({ selected }),
   setStake: (stake) => set({ stake }),
   setDuration: (durationS) => set({ durationS }),
+  setBetKind: (betKind) => set({ betKind }),
+  setBarrierBps: (barrierBps) => set({ barrierBps }),
   addPending: (p) => set((s) => ({ pending: [...s.pending, p] })),
   removePending: (id) =>
     set((s) => ({ pending: s.pending.filter((p) => p.id !== id) })),

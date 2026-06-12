@@ -3,7 +3,13 @@ import { loadChainConfig } from "./chain/config";
 import { loadBurner } from "./chain/wallet";
 import { WickClient } from "./chain/wick";
 import { useStore, openBets, freshestTs } from "./state/store";
-import { RESOLVE_GRACE_MS, VOID_DELAY_MS } from "./chain/wick";
+import {
+  RESOLVE_GRACE_MS,
+  VOID_DELAY_MS,
+  BET_KIND_TOUCH,
+  DIRECTION_UP,
+  type UserState,
+} from "./chain/wick";
 import { sWin, sLoss, sPush } from "./sounds";
 import TopBar from "./components/TopBar";
 import MarketRail from "./components/MarketRail";
@@ -25,7 +31,17 @@ export default function App() {
   const subsRef = useRef<number[]>([]);
   const resolvingRef = useRef<Set<string>>(new Set());
   const armedRef = useRef<Set<string>>(new Set());
+  const touchRef = useRef<Map<string, number>>(new Map()); // per-touch check cooldown
+  const shownRef = useRef<Set<string>>(new Set()); // bets we've shown a verdict for
+  const prevUserRef = useRef<UserState | null>(null);
   const cranksRef = useRef(true); // disabled after first arm failure on this ER
+
+  // Mark a bet as already celebrated, so the state-delta watcher below doesn't
+  // double-fire a verdict the in-browser resolver already showed.
+  function markShown(key: string) {
+    shownRef.current.add(key);
+    setTimeout(() => shownRef.current.delete(key), 6000);
+  }
 
   // ── boot ────────────────────────────────────────────────────
   useEffect(() => {
@@ -135,11 +151,38 @@ export default function App() {
           });
         }
 
-        // Settle against a print inside [expiry, expiry+grace]; once the window
-        // has closed unfilled (dead/frozen feed, or we were backgrounded), void
-        // for a stake refund. The always-live crypto feeds give a chain clock.
         const chainNow = Math.max(freshestTs(s.feeds), feed.tsMs);
         const windowEnd = bet.expiryMs + RESOLVE_GRACE_MS;
+
+        // ── one-touch: win the instant the barrier is crossed in-window ──
+        if (bet.kind === BET_KIND_TOUCH) {
+          const liveWindow = feed.tsMs > bet.placedMs && feed.tsMs <= bet.expiryMs;
+          const crossed =
+            bet.direction === DIRECTION_UP
+              ? feed.raw >= bet.strike
+              : feed.raw <= bet.strike;
+          const tKey = `t:${bet.slot}:${bet.placedMs}`;
+          if (liveWindow && crossed && (touchRef.current.get(tKey) ?? 0) < Date.now()) {
+            touchRef.current.set(tKey, Date.now() + 900);
+            try {
+              const res = await client.checkTouch(market, bet);
+              if (res?.verdict) {
+                s.recordLatency(res.ms);
+                s.showVerdict(res.verdict, res.ms);
+                markShown(tKey.slice(2)); // strip the "t:" prefix
+                if (s.soundOn) sWin();
+              }
+            } catch {
+              /* lost the race or transient — retry next print */
+            }
+            continue;
+          }
+        }
+
+        // Settle against a print inside [expiry, expiry+grace]; once the window
+        // has closed unfilled (dead/frozen feed, or we were backgrounded), void
+        // for a stake refund. The always-live crypto feeds give a chain clock. A
+        // touch bet reaching here was never touched → resolve_bet scores a loss.
         const inWindow = feed.tsMs >= bet.expiryMs && feed.tsMs <= windowEnd;
         const voidable =
           chainNow > windowEnd + VOID_DELAY_MS &&
@@ -156,6 +199,7 @@ export default function App() {
           s.recordLatency(ms);
           if (verdict) {
             s.showVerdict(verdict, ms);
+            markShown(key);
             if (s.soundOn) {
               if (verdict.outcome === "win") sWin();
               else if (verdict.outcome === "loss") sLoss();
@@ -171,6 +215,49 @@ export default function App() {
     }, 180);
     return () => clearInterval(iv);
   }, [phase]);
+
+  // ── verdict watcher: celebrate any of the user's settlements, even ones the
+  //    house sweeper or the on-chain crank closed — so the "Lit." moment never
+  //    silently goes missing just because the browser lost the settle race ──
+  const user = useStore((s) => s.user);
+  useEffect(() => {
+    const prev = prevUserRef.current;
+    prevUserRef.current = user;
+    if (!prev || !user) return;
+    const dW = user.wins - prev.wins;
+    const dL = user.losses - prev.losses;
+    const dP = user.pushes - prev.pushes;
+    if (dW + dL + dP <= 0) return;
+    for (let i = 0; i < prev.bets.length; i++) {
+      const pb = prev.bets[i];
+      if (pb.status !== 1) continue;
+      const nb = user.bets[i];
+      if (nb && nb.status === 1 && nb.placedMs === pb.placedMs) continue; // still open
+      const key = `${i}:${pb.placedMs}`;
+      if (shownRef.current.has(key)) continue; // browser already celebrated it
+      const outcome = dW > 0 ? "win" : dL > 0 ? "loss" : "push";
+      const s = useStore.getState();
+      s.showVerdict({
+        outcome,
+        stake: pb.stake,
+        payout:
+          outcome === "win"
+            ? pb.stake + pb.potentialProfit
+            : outcome === "push"
+              ? pb.stake
+              : 0,
+        marketIdx: pb.marketIdx,
+      });
+      if (s.soundOn) {
+        if (outcome === "win") sWin();
+        else if (outcome === "loss") sLoss();
+        else sPush();
+      }
+      markShown(key);
+      break; // one celebration per state change is plenty
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   // ── settle up: undelegate → withdraw everything to the wallet ──
   async function settle(): Promise<void> {

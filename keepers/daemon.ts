@@ -217,14 +217,25 @@ function feedPdaOf(m: MarketDef): PublicKey {
   return usesPythOracle(m) ? pythFeedPda(m.pythId!) : P.feed(m.symbol);
 }
 
-/** Latest print timestamp (ms) from a raw feed account. */
-function feedTsOf(m: MarketDef, data: Buffer): number {
-  if (usesPythOracle(m)) return Number(data.readBigInt64LE(93)) * 1000; // publish_time (s)
-  return Number(data.readBigInt64LE(8 + 12 + 8 + 4)); // WickFeed.ts_ms
+/** Latest print (raw price + ts) from a raw feed account. Price/expo share the
+ *  feed's units, so a bet placed against the same feed can compare raw values. */
+function feedReadOf(m: MarketDef, data: Buffer): { price: number; tsMs: number } {
+  if (usesPythOracle(m)) {
+    return {
+      price: Number(data.readBigInt64LE(73)), // price i64 @73
+      tsMs: Number(data.readBigInt64LE(93)) * 1000, // publish_time (s) @93
+    };
+  }
+  // WickFeed: 8 disc + 12 symbol, then price i64, expo i32, ts_ms i64
+  return {
+    price: Number(data.readBigInt64LE(8 + 12)),
+    tsMs: Number(data.readBigInt64LE(8 + 12 + 8 + 4)),
+  };
 }
 
+const BET_KIND_TOUCH = 1;
 const sweepCooldown = new Map<string, number>();
-const sweepStats = { resolved: 0, voided: 0 };
+const sweepStats = { resolved: 0, voided: 0, touched: 0 };
 let sweeping = false;
 
 async function sweepTick(): Promise<void> {
@@ -232,10 +243,10 @@ async function sweepTick(): Promise<void> {
   sweeping = true;
   try {
     const feedInfos = await ctx.er.getMultipleAccountsInfo(MARKETS.map(feedPdaOf));
-    const feedTs: Record<number, number> = {};
+    const feed: Record<number, { price: number; tsMs: number }> = {};
     MARKETS.forEach((m, i) => {
       const info = feedInfos[i];
-      if (info) feedTs[m.idx] = feedTsOf(m, info.data as Buffer);
+      if (info) feed[m.idx] = feedReadOf(m, info.data as Buffer);
     });
 
     const users = await ctx.er.getProgramAccounts(ctx.programId, { filters: userFilter });
@@ -251,24 +262,42 @@ async function sweepTick(): Promise<void> {
       (u.bets as any[]).forEach((b, slot) => {
         if (b.status !== 1) return;
         const m = MARKETS.find((mk) => mk.idx === b.marketIdx);
-        const ts = m ? feedTs[m.idx] : undefined;
-        if (!m || ts === undefined) return;
+        const f = m ? feed[m.idx] : undefined;
+        if (!m || !f) return;
+        const ts = f.tsMs;
+        const placed = (b.placedMs as BN).toNumber();
         const expiry = (b.expiryMs as BN).toNumber();
         const windowEnd = expiry + graceMs;
-        const key = `${pubkey.toBase58()}:${slot}:${(b.placedMs as BN).toNumber()}`;
+        const key = `${pubkey.toBase58()}:${slot}:${placed}`;
         if ((sweepCooldown.get(key) ?? 0) > now) return;
 
-        let action: "resolve" | "void" | null = null;
-        if (ts >= expiry && ts <= windowEnd) action = "resolve";
-        else if (now > windowEnd + VOID_DELAY_MS + 500 && (ts < expiry || ts > windowEnd))
-          action = "void";
+        // For a TOUCH bet, the live job is to detect a barrier crossing on any
+        // in-window print — the continuous monitoring an ER makes free.
+        let action: "resolve" | "void" | "checkTouch" | null = null;
+        if (b.kind === BET_KIND_TOUCH) {
+          const barrier = (b.strike as BN).toNumber();
+          const inWindow = ts > placed && ts <= expiry;
+          const crossed = b.direction === 1 ? f.price >= barrier : f.price <= barrier;
+          if (inWindow && crossed) action = "checkTouch";
+          else if (ts >= expiry && ts <= windowEnd) action = "resolve"; // untouched → loss
+          else if (now > windowEnd + VOID_DELAY_MS + 500 && (ts < expiry || ts > windowEnd))
+            action = "void";
+        } else {
+          if (ts >= expiry && ts <= windowEnd) action = "resolve";
+          else if (now > windowEnd + VOID_DELAY_MS + 500 && (ts < expiry || ts > windowEnd))
+            action = "void";
+        }
         if (!action) return;
 
-        sweepCooldown.set(key, now + 2_500);
+        // Touch checks can fire many times per window; don't rate-limit a
+        // crossing as hard as a one-shot resolve/void.
+        sweepCooldown.set(key, now + (action === "checkTouch" ? 700 : 2_500));
         const method =
-          action === "resolve"
-            ? ctx.program.methods.resolveBet(slot)
-            : ctx.program.methods.voidBet(slot);
+          action === "checkTouch"
+            ? ctx.program.methods.checkTouch(slot)
+            : action === "resolve"
+              ? ctx.program.methods.resolveBet(slot)
+              : ctx.program.methods.voidBet(slot);
         void method
           .accounts({
             resolver: ctx.admin.publicKey,
@@ -281,10 +310,12 @@ async function sweepTick(): Promise<void> {
           .instruction()
           .then((ix) => sendER(ctx, new Transaction().add(ix)))
           .then(() => {
-            sweepStats[action === "resolve" ? "resolved" : "voided"]++;
+            sweepStats[
+              action === "checkTouch" ? "touched" : action === "resolve" ? "resolved" : "voided"
+            ]++;
           })
           .catch(() => {
-            /* usually lost the race to the user's own resolver — fine */
+            /* lost the race to the user's own resolver, or not actually crossed — fine */
           });
       });
     }

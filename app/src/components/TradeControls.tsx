@@ -1,17 +1,27 @@
 import { marketStatusOf, useStore } from "../state/store";
 import { toUnits } from "../chain/config";
-import { DIRECTION_DOWN, DIRECTION_UP } from "../chain/wick";
+import {
+  DIRECTION_DOWN,
+  DIRECTION_UP,
+  BET_KIND_BINARY,
+  BET_KIND_TOUCH,
+  TOUCH_BARRIERS,
+} from "../chain/wick";
 import { sIgnite } from "../sounds";
 
 const STAKES = [1, 5, 10, 25, 100];
 const DURATIONS = [5, 10, 30, 60];
-const PAYOUT = 1.9;
+const BINARY_PAYOUT = 1.9;
 
 export default function TradeControls() {
   const stake = useStore((s) => s.stake);
   const durationS = useStore((s) => s.durationS);
   const setStake = useStore((s) => s.setStake);
   const setDuration = useStore((s) => s.setDuration);
+  const betKind = useStore((s) => s.betKind);
+  const barrierBps = useStore((s) => s.barrierBps);
+  const setBetKind = useStore((s) => s.setBetKind);
+  const setBarrierBps = useStore((s) => s.setBarrierBps);
   const selected = useStore((s) => s.selected);
   const config = useStore((s) => s.config);
   const client = useStore((s) => s.client);
@@ -19,9 +29,13 @@ export default function TradeControls() {
   const soundOn = useStore((s) => s.soundOn);
   const feeds = useStore((s) => s.feeds);
   const sessions = useStore((s) => s.sessions);
+  const pending = useStore((s) => s.pending);
   const { addPending, removePending, recordLatency, toast } = useStore.getState();
 
-  const pending = useStore((s) => s.pending);
+  const isTouch = betKind === BET_KIND_TOUCH;
+  const barrier = TOUCH_BARRIERS.find((b) => b.bps === barrierBps) ?? TOUCH_BARRIERS[1];
+  const payoutX = isTouch ? barrier.payoutX : BINARY_PAYOUT;
+
   const market = config?.markets.find((m) => m.idx === selected);
   const stakeUnits = toUnits(stake);
   const status = market
@@ -34,7 +48,6 @@ export default function TradeControls() {
     !status.closed &&
     user.balance >= stakeUnits &&
     user.openBets < 8;
-  // first-run nudge: a cold visitor lands on a chart with no guidance
   const showHint =
     canTrade && !status.closed && (user?.openBets ?? 0) === 0 && pending.length === 0;
 
@@ -51,7 +64,9 @@ export default function TradeControls() {
     });
     if (soundOn) sIgnite();
     try {
-      const { ms } = await client.placeBet(market, direction, stakeUnits, durationS);
+      const { ms } = isTouch
+        ? await client.placeTouchBet(market, direction, stakeUnits, durationS, barrierBps)
+        : await client.placeBet(market, direction, stakeUnits, durationS);
       recordLatency(ms);
     } catch (e) {
       toast(e instanceof Error ? e.message.slice(0, 140) : "bet failed", "err");
@@ -62,6 +77,30 @@ export default function TradeControls() {
 
   return (
     <footer className="controls">
+      <div className="control-group">
+        <span className="control-label">Mode</span>
+        <div className="chip-row" role="radiogroup" aria-label="bet type">
+          <button
+            className={`chip ${!isTouch ? "active" : ""}`}
+            onClick={() => setBetKind(BET_KIND_BINARY)}
+            role="radio"
+            aria-checked={!isTouch}
+            title="settle up/down against the price at expiry"
+          >
+            Settle
+          </button>
+          <button
+            className={`chip ${isTouch ? "active" : ""}`}
+            onClick={() => setBetKind(BET_KIND_TOUCH)}
+            role="radio"
+            aria-checked={isTouch}
+            title="win the instant the price touches a barrier — monitored live on the rollup"
+          >
+            Touch
+          </button>
+        </div>
+      </div>
+
       <div className="control-group">
         <span className="control-label">Expiry</span>
         <div className="chip-row" role="radiogroup" aria-label="expiry">
@@ -96,6 +135,26 @@ export default function TradeControls() {
         </div>
       </div>
 
+      {isTouch && (
+        <div className="control-group">
+          <span className="control-label">Barrier</span>
+          <div className="chip-row" role="radiogroup" aria-label="barrier distance">
+            {TOUCH_BARRIERS.map((b) => (
+              <button
+                key={b.bps}
+                className={`chip num ${b.bps === barrierBps ? "active" : ""}`}
+                onClick={() => setBarrierBps(b.bps)}
+                role="radio"
+                aria-checked={b.bps === barrierBps}
+                title={`${b.label} away · pays ${b.payoutX}×`}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="controls-spacer" />
 
       {status.closed && (
@@ -107,8 +166,17 @@ export default function TradeControls() {
 
       {showHint && (
         <div className="first-tap-hint">
-          Tap <strong className="up">LONG</strong> or <strong className="down">SHORT</strong> to
-          place your first {durationS}-second option
+          {isTouch ? (
+            <>
+              Tap a side — you win the instant {market?.symbol} <strong>touches</strong>{" "}
+              {barrier.label} away
+            </>
+          ) : (
+            <>
+              Tap <strong className="up">LONG</strong> or <strong className="down">SHORT</strong>{" "}
+              to place your first {durationS}-second option
+            </>
+          )}
         </div>
       )}
 
@@ -117,16 +185,16 @@ export default function TradeControls() {
         disabled={!canTrade}
         onClick={() => fire(DIRECTION_DOWN)}
       >
-        <span className="arrow">▼</span> SHORT
-        <span className="payout num">×{PAYOUT}</span>
+        <span className="arrow">▼</span> {isTouch ? "TOUCH DOWN" : "SHORT"}
+        <span className="payout num">×{payoutX}</span>
       </button>
       <button
         className="dir-btn long"
         disabled={!canTrade}
         onClick={() => fire(DIRECTION_UP)}
       >
-        <span className="arrow">▲</span> LONG
-        <span className="payout num">×{PAYOUT}</span>
+        <span className="arrow">▲</span> {isTouch ? "TOUCH UP" : "LONG"}
+        <span className="payout num">×{payoutX}</span>
       </button>
     </footer>
   );

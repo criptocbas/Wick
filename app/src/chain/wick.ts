@@ -31,13 +31,25 @@ export const DIRECTION_UP = 1;
 export const RESOLVE_GRACE_MS = 3_000;
 export const VOID_DELAY_MS = 2_000;
 
+export const BET_KIND_BINARY = 0;
+export const BET_KIND_TOUCH = 1;
+
+/** Allowed touch barriers (bps from entry) and their flat demo payouts. */
+export const TOUCH_BARRIERS: { bps: number; label: string; payoutX: number }[] = [
+  { bps: 10, label: "0.1%", payoutX: 1.4 },
+  { bps: 25, label: "0.25%", payoutX: 1.9 },
+  { bps: 50, label: "0.5%", payoutX: 3.0 },
+  { bps: 100, label: "1%", payoutX: 6.0 },
+];
+
 export interface Bet {
   status: number;
   direction: number;
   marketIdx: number;
+  kind: number; // 0 = binary, 1 = one-touch
   stake: number;
   potentialProfit: number;
-  strike: number; // raw oracle units
+  strike: number; // raw oracle units (binary: strike; touch: barrier)
   expo: number;
   placedMs: number;
   expiryMs: number;
@@ -90,6 +102,7 @@ function decodeUser(coder: Program["coder"], data: Buffer): UserState {
       status: b.status,
       direction: b.direction,
       marketIdx: b.marketIdx,
+      kind: b.kind,
       stake: (b.stake as BN).toNumber(),
       potentialProfit: (b.potentialProfit as BN).toNumber(),
       strike: (b.strike as BN).toNumber(),
@@ -464,6 +477,73 @@ export class WickClient {
         }
         throw e;
       }
+    }
+  }
+
+  /** Open a one-touch barrier option. Same retry behavior as placeBet. */
+  async placeTouchBet(
+    market: MarketInfo,
+    direction: number,
+    stakeUnits: number,
+    durationS: number,
+    barrierBps: number
+  ): Promise<{ sig: string; ms: number }> {
+    const build = () =>
+      this.program.methods
+        .placeTouchBet(direction, new BN(stakeUnits), durationS, barrierBps)
+        .accounts({
+          operator: this.wallet.publicKey,
+          market: this.marketPda(market.idx),
+          book: this.bookPda(market.idx),
+          house: this.housePda,
+          userAccount: this.userPda,
+          feed: new PublicKey(market.feed),
+        })
+        .transaction();
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.sendER(await build());
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (attempt < 4 && /InvalidWritableAccount|not.*delegat/i.test(msg)) {
+          await new Promise((r) => setTimeout(r, 1200));
+          continue;
+        }
+        throw e;
+      }
+    }
+  }
+
+  /** Try to win a one-touch bet at the current price. Returns a win verdict if
+   *  the barrier was crossed; null if it reverted (not touched yet). */
+  async checkTouch(market: MarketInfo, bet: Bet): Promise<{ verdict: Verdict | null; ms: number } | null> {
+    const tx = await this.program.methods
+      .checkTouch(bet.slot)
+      .accounts({
+        resolver: this.wallet.publicKey,
+        market: this.marketPda(market.idx),
+        book: this.bookPda(market.idx),
+        house: this.housePda,
+        userAccount: this.userPda,
+        feed: new PublicKey(market.feed),
+      })
+      .transaction();
+    try {
+      const { ms } = await this.sendER(tx);
+      return {
+        verdict: {
+          outcome: "win",
+          stake: bet.stake,
+          payout: bet.stake + bet.potentialProfit,
+          marketIdx: market.idx,
+        },
+        ms,
+      };
+    } catch (e) {
+      // NotTouched (barrier not crossed at this print) is the expected no-op.
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/NotTouched|0x179[0-9a-f]/i.test(msg)) return null;
+      throw e;
     }
   }
 

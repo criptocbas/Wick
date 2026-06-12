@@ -48,4 +48,10 @@ pub enum WickError {
     ExpiryInPast,
     #[msg("Invalid protocol parameters")]
     InvalidParams,
+    #[msg("Barrier distance is not one of the allowed presets")]
+    InvalidBarrier,
+    #[msg("Bet is not a one-touch barrier option")]
+    NotTouchBet,
+    #[msg("Barrier has not been touched in the live window")]
+    NotTouched,
 }

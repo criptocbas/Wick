@@ -433,6 +433,15 @@ input:focus-visible {
   animation: strip-in 0.32s var(--ease-out);
   overflow: hidden;
 }
+/* one-touch bets read as a live "target", not a settle-at-expiry wick */
+.wick-strip.touch {
+  border-color: oklch(80% 0.14 75 / 0.4);
+  background: linear-gradient(
+    100deg,
+    oklch(80% 0.14 75 / 0.08),
+    oklch(19% 0.016 58 / 0.92) 38%
+  );
+}
 
 @keyframes strip-in {
   from { transform: translateY(14px); opacity: 0; }

@@ -12,9 +12,11 @@ depth · meaningful ER use; +50% prize with Flash Trade integrated.
 ```
 program/   Anchor 1.0.2 program (ephemeral-rollups-sdk 0.14.x). Escrowed balances, per-market
            books, house solvency reserve, WINDOWED oracle settlement ([expiry, expiry+grace]),
-           void_bet (dead-feed stake refund), set_params/set_market_enabled (admin tuning+pause),
-           oracle-program owner check on kind-0 feeds, delegate→trade→commit→undelegate,
-           arm_resolution (best-effort crank). Devnet id HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj
+           ONE-TOUCH barrier options (place_touch_bet + check_touch — continuous in-window
+           monitoring, the impossible-on-L1 mechanic), void_bet (dead-feed stake refund),
+           set_params/set_market_enabled (admin tuning+pause), oracle-program owner check on
+           kind-0 feeds, delegate→trade→commit→undelegate, arm_resolution (best-effort crank).
+           Devnet id G6Biewd4imM1depq2WpJNomAhM63Y6DVjNYsZWHnAWdi
 app/       Vite + React + TS. Tap-to-trade, burning-wick timer, canvas price tape, hedge-desk
            drawer, latency duel, "Provably fair" trust panel, streak leaderboard. Talks to L1 +
            the ER via @coral-xyz/anchor 0.32.1 (the npm TS client never went 1.0).
@@ -83,9 +85,15 @@ Fully working on devnet end-to-end, hardened after a full security/economics/jud
 settlement-timing exploit (resolver chose the settle print) is closed by the on-chain window +
 the daemon sweeper; stale-strike sniping is closed by `max_feed_age_ms` (2.5s) < `min_duration`
 (5s); dead-feed fund-stranding is closed by `void_bet`; faucet abuse is rate-limited; the
-leaderboard merges ER (live) + L1 (settled). Verified live on devnet: crypto + exotic bets swept
-by the daemon with no browser, void refund on a frozen feed, full browser onboard→bet→settle.
-Remaining for submission: host publicly, demo video (lead with the latency duel), Luma submission.
+leaderboard merges ER (live) + L1 (settled). Then a **visibility pass** put the depth on the
+always-on surface (real ER latency on every settlement + a latency tape, an ambient ER-vs-L1
+duel strip that auto-runs, a live Flash hedge badge, House-book-vs-Hedge P&L chart, a live
+backdrop behind onboarding) and added **one-touch barrier options** — the impossible-on-L1
+mechanic (continuous in-window barrier monitoring via check_touch). Verified live on devnet:
+crypto + exotic bets swept by the daemon with no browser, void refund on a frozen feed, one-touch
+win via barrier crossing, full browser onboard→bet→settle for both binary and touch.
+Remaining for submission: host publicly, demo video (lead with the latency duel + a one-touch win),
+Luma submission.
 Honest caveats to state in the pitch: exotic prices are keeper-signed (crypto uses MagicBlock's
 neutral oracle); the demo house is play-money while the hedge is real (directional, not fully
 risk-neutral); the autonomous crank is localnet-proven and best-effort on the public devnet ER

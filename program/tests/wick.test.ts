@@ -192,6 +192,34 @@ describe("wick lifecycle", () => {
       .transaction();
   }
 
+  function touchTx(stakeUi: number, durationS: number, barrierBps: number) {
+    return program.methods
+      .placeTouchBet(DIRECTION_UP, toUnits(stakeUi), durationS, barrierBps)
+      .accounts({
+        operator: admin.publicKey,
+        market: marketPda,
+        book: bookPda,
+        house: housePda,
+        userAccount: userPda,
+        feed: feedPda,
+      })
+      .transaction();
+  }
+
+  function checkTouchTx(betIdx: number) {
+    return program.methods
+      .checkTouch(betIdx)
+      .accounts({
+        resolver: admin.publicKey,
+        market: marketPda,
+        book: bookPda,
+        house: housePda,
+        userAccount: userPda,
+        feed: feedPda,
+      })
+      .transaction();
+  }
+
   async function fetchUserER() {
     const info = await providerER.connection.getAccountInfo(userPda);
     return program.coder.accounts.decode("userAccount", info!.data);
@@ -424,6 +452,49 @@ describe("wick lifecycle", () => {
     assert.equal(house.locked.toNumber(), 0);
   });
 
+  it("wins a one-touch bet the instant the barrier is crossed", async () => {
+    await pushPriceER(px(150)); // entry → barrier(UP, 0.1%) = 150.15
+    const before = await fetchUserER();
+    await sendER(await touchTx(10, 10, 10)); // 10s window, 1.4x payout
+    let user = await fetchUserER();
+    assert.equal(user.openBets, 1);
+
+    // not crossed yet → check_touch must revert
+    await pushPriceER(px(150.1)); // still below 150.15
+    await expectError(sendER(await checkTouchTx(0)), "NotTouched");
+
+    // cross the barrier → check_touch wins immediately, mid-window
+    await sleep(300);
+    await pushPriceER(px(151)); // 151 >= 150.15
+    await sendER(await checkTouchTx(0));
+
+    user = await fetchUserER();
+    // stake 10 back + 0.4x profit on a 1.4x payout = +4 net
+    assert.equal(
+      user.balance.toString(),
+      before.balance.add(toUnits(4)).toString()
+    );
+    assert.equal(user.openBets, 0);
+  });
+
+  it("loses a one-touch bet that never reaches its barrier", async () => {
+    await pushPriceER(px(150)); // entry → barrier(UP, 0.5%) = 150.75
+    const before = await fetchUserER();
+    await sendER(await touchTx(10, 5, 50));
+    await pushPriceER(px(150.2)); // stays below the barrier, in-window
+
+    await sleep(5500); // past expiry
+    await pushPriceER(px(150.3)); // settle print in window, still below barrier
+    await sendER(await resolveBetTx(0)); // touch never touched → loss
+
+    const user = await fetchUserER();
+    assert.equal(
+      user.balance.toString(),
+      before.balance.sub(toUnits(10)).toString()
+    );
+    assert.equal(user.openBets, 0);
+  });
+
   it("undelegates and withdraws on L1", async () => {
     const undelegateTx = await program.methods
       .undelegateUser()
@@ -432,8 +503,11 @@ describe("wick lifecycle", () => {
     await sendER(undelegateTx);
     await sleep(3000);
 
+    // withdraw whatever the running balance settled to after all the bets above
+    const settled = await program.account.userAccount.fetch(userPda);
+    assert.isAbove(settled.balance.toNumber(), 0);
     await program.methods
-      .withdraw(toUnits(1_009))
+      .withdraw(settled.balance)
       .accounts({ authority: admin.publicKey, to: adminAta })
       .rpc();
 

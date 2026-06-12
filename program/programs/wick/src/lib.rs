@@ -9,7 +9,7 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("HXuqCfyT96dnA1W9R1xHoEh75h8favw3p1v5jB1Zzgrj");
+declare_id!("G6Biewd4imM1depq2WpJNomAhM63Y6DVjNYsZWHnAWdi");
 
 #[ephemeral]
 #[program]
@@ -129,6 +129,20 @@ pub mod wick {
         duration_s: u32,
     ) -> Result<()> {
         instructions::er::place_bet(ctx, direction, stake, duration_s)
+    }
+
+    pub fn place_touch_bet(
+        ctx: Context<PlaceBet>,
+        direction: u8,
+        stake: u64,
+        duration_s: u32,
+        barrier_bps: u32,
+    ) -> Result<()> {
+        instructions::er::place_touch_bet(ctx, direction, stake, duration_s, barrier_bps)
+    }
+
+    pub fn check_touch(ctx: Context<ResolveBet>, bet_idx: u8) -> Result<()> {
+        instructions::er::check_touch(ctx, bet_idx)
     }
 
     pub fn resolve_bet(ctx: Context<ResolveBet>, bet_idx: u8) -> Result<()> {
