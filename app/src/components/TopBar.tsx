@@ -9,6 +9,7 @@ export default function TopBar({ onSettle }: { onSettle: () => void }) {
   const busy = useStore((s) => s.busy);
   const toggleDesk = useStore((s) => s.toggleDesk);
   const toggleDuel = useStore((s) => s.toggleDuel);
+  const toggleTrust = useStore((s) => s.toggleTrust);
   const desk = useStore((s) => s.desk);
   const hedgeCount = desk?.positions.length ?? 0;
 
@@ -31,6 +32,14 @@ export default function TopBar({ onSettle }: { onSettle: () => void }) {
           "rollup ready"
         )}
         <span className="latency-vs"> · vs L1 ↗</span>
+      </button>
+
+      <button
+        className="trust-pill"
+        onClick={() => toggleTrust(true)}
+        title="why your money is safe"
+      >
+        ◆ Provably fair
       </button>
 
       <div className="topbar-spacer" />

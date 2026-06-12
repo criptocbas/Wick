@@ -16,6 +16,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export default function Onboarding({ onReady }: { onReady: () => Promise<void> }) {
   const client = useStore((s) => s.client);
   const config = useStore((s) => s.config);
+  const toggleTrust = useStore((s) => s.toggleTrust);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState<Set<StepId>>(new Set());
   const [now, setNow] = useState<StepId | null>(null);
@@ -110,6 +111,9 @@ export default function Onboarding({ onReady }: { onReady: () => Promise<void> }
           One click sets up a local burner wallet — no extension, no popups, every
           trade gasless on the rollup.
         </p>
+        <button className="trust-trigger" onClick={() => toggleTrust(true)}>
+          Provably fair — why your money is safe ↗
+        </button>
         {error && <p className="error">{error}</p>}
       </div>
     </div>

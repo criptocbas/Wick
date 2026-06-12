@@ -192,6 +192,25 @@ export class WickClient {
     );
   }
 
+  /** The L1 escrow vault token account that custodies all collateral. */
+  get vaultPda(): PublicKey {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("vault_token")],
+      this.program.programId
+    )[0];
+  }
+
+  get programId(): PublicKey {
+    return this.program.programId;
+  }
+
+  /** Solscan link honoring the cluster. */
+  solscan(addr: PublicKey | string): string {
+    const a = typeof addr === "string" ? addr : addr.toBase58();
+    const c = this.cfg.cluster === "mainnet" ? "" : `?cluster=${this.cfg.cluster}`;
+    return `https://solscan.io/account/${a}${c}`;
+  }
+
   // ── ER send path (the hot path: cached blockhash, raw send) ──
 
   private async getErBlockhash(): Promise<string> {

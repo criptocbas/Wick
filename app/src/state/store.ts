@@ -82,6 +82,7 @@ interface WickStore {
   desk: DeskState | null;
   deskOpen: boolean;
   duelOpen: boolean;
+  trustOpen: boolean;
 
   setPhase(p: WickStore["phase"], err?: string): void;
   setClient(c: WickClient, cfg: ChainConfig): void;
@@ -103,6 +104,7 @@ interface WickStore {
   setDesk(d: DeskState | null): void;
   toggleDesk(open?: boolean): void;
   toggleDuel(open?: boolean): void;
+  toggleTrust(open?: boolean): void;
 }
 
 const WINDOW_MS = 95_000;
@@ -131,6 +133,7 @@ export const useStore = create<WickStore>((set, get) => ({
   desk: null,
   deskOpen: false,
   duelOpen: false,
+  trustOpen: false,
 
   setPhase: (phase, err) => set({ phase, bootError: err ?? null }),
   setClient: (client, config) => set({ client, config }),
@@ -191,6 +194,7 @@ export const useStore = create<WickStore>((set, get) => ({
   setDesk: (desk) => set({ desk }),
   toggleDesk: (open) => set((s) => ({ deskOpen: open ?? !s.deskOpen })),
   toggleDuel: (open) => set((s) => ({ duelOpen: open ?? !s.duelOpen })),
+  toggleTrust: (open) => set((s) => ({ trustOpen: open ?? !s.trustOpen })),
 }));
 
 export function openBets(user: UserState | null): Bet[] {

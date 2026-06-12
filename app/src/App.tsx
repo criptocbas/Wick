@@ -12,6 +12,7 @@ import Onboarding from "./components/Onboarding";
 import Toasts from "./components/Toasts";
 import HouseDesk from "./components/HouseDesk";
 import LatencyDuel from "./components/LatencyDuel";
+import TrustPanel from "./components/TrustPanel";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -196,6 +197,7 @@ export default function App() {
     return (
       <>
         <Onboarding onReady={enterReady} />
+        <TrustPanel />
         <Toasts />
       </>
     );
@@ -209,6 +211,7 @@ export default function App() {
       <TradeControls />
       <HouseDesk />
       <LatencyDuel />
+      <TrustPanel />
       <Toasts />
     </div>
   );
