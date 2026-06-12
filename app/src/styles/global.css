@@ -695,7 +695,7 @@ input:focus-visible {
 
 @media (max-width: 760px) {
   .shell {
-    grid-template-rows: 52px 44px 1fr 132px;
+    grid-template-rows: 52px 44px 1fr 150px;
     grid-template-columns: 1fr;
     grid-template-areas:
       "top"
@@ -704,7 +704,7 @@ input:focus-visible {
       "controls";
   }
 
-  :root { --controls-h: 132px; }
+  :root { --controls-h: 150px; }
 
   .rail {
     display: flex;
@@ -734,9 +734,32 @@ input:focus-visible {
     padding: 10px 14px;
   }
 
-  .dir-btn { height: 52px; flex: 1; }
+  .dir-btn { height: 52px; flex: 1 1 calc(50% - 5px); min-width: 0; }
+  .dir-btn .payout { display: none; }
+  .control-group { flex: 0 0 auto; }
   .wicks { bottom: 10px; left: 12px; }
   .balance-block .value { font-size: 16px; }
+
+  /* topbar: keep it to essentials so it never overflows on phones */
+  .topbar { gap: 8px; padding: 0 10px; }
+  .wordmark { font-size: 22px; }
+  .latency-pill,
+  .trust-pill,
+  .btn-quiet:not(.desk-btn) { display: none; }
+  .streak-btn { padding: 5px 8px; }
+  .streak-label { display: none; }
+  .desk-btn { padding: 6px 9px; font-size: 12px; }
+  .controls { row-gap: 8px; }
+  .control-group { flex: 1 1 auto; }
+  .controls-spacer { display: none; }
+  .closed-note { width: 100%; align-items: flex-start; }
+
+  /* full-width sheets on phones */
+  .desk-drawer { width: 100%; }
+  .duel-card,
+  .trust-card,
+  .board-card { width: 94vw; padding: 22px 18px 18px; }
+  .me-stats { grid-template-columns: repeat(3, 1fr); row-gap: 12px; }
 }
 
 /* ── closed markets ─────────────────────────────────────────── */
@@ -1251,6 +1274,16 @@ input:focus-visible {
   color: var(--ink-faint);
 }
 .me-streak { color: var(--flame); font-size: 13px; font-weight: 650; }
+.me-head-right { display: flex; align-items: center; gap: 10px; }
+.share-btn {
+  font-size: 11.5px;
+  color: var(--ink-dim);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 9px;
+  transition: color 0.13s, border-color 0.13s;
+}
+.share-btn:hover { color: var(--flame); border-color: var(--flame); }
 .me-stats {
   display: grid;
   grid-template-columns: repeat(5, 1fr);

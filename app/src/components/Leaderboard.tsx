@@ -22,6 +22,20 @@ export default function Leaderboard() {
   const total = user ? user.wins + user.losses : 0;
   const winRate = total ? Math.round((user!.wins / total) * 100) : 0;
 
+  const shareToX = () => {
+    if (!user) return;
+    const pnl = user.pnl / 1e6;
+    const text =
+      user.bestStreak >= 3
+        ? `🔥 ${user.bestStreak}-win streak on Wick — ten-second options on @MagicBlock, hedged on @FlashTrade. ${winRate}% win rate, ${pnl >= 0 ? "+" : "−"}$${Math.abs(pnl).toFixed(2)}.`
+        : `Trading ten-second options on Wick — on-chain, gasless, no liquidations. ${user.wins}W/${user.losses}L on @MagicBlock ⚡`;
+    window.open(
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`,
+      "_blank",
+      "noopener"
+    );
+  };
+
   return (
     <div className="board-scrim" onClick={() => toggle(false)}>
       <div className="board-card" onClick={(e) => e.stopPropagation()}>
@@ -39,9 +53,16 @@ export default function Leaderboard() {
           <div className="me-card">
             <div className="me-head">
               <span className="me-label">Your record</span>
-              {user.streak > 0 && (
-                <span className="me-streak num">🔥 {user.streak} live</span>
-              )}
+              <div className="me-head-right">
+                {user.streak > 0 && (
+                  <span className="me-streak num">🔥 {user.streak} live</span>
+                )}
+                {total > 0 && (
+                  <button className="share-btn" onClick={shareToX}>
+                    Share ↗
+                  </button>
+                )}
+              </div>
             </div>
             <div className="me-stats">
               <div>
