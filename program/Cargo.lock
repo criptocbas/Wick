@@ -883,7 +883,7 @@ dependencies = [
  "five8 0.2.1",
  "getrandom 0.2.17",
  "magicblock-delegation-program-api",
- "magicblock-magic-program-api",
+ "magicblock-magic-program-api 0.10.1",
  "solana-account-info 2.3.0",
  "solana-address 2.6.1",
  "solana-program 2.3.0",
@@ -1356,6 +1356,19 @@ name = "magicblock-magic-program-api"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1dc8fba0307c90b91b70c9ed06d4242d6c4159f331b2f05bf8f875c2a94e0e98"
+dependencies = [
+ "bincode",
+ "const-crypto",
+ "serde",
+ "solana-program 3.0.0",
+ "solana-signature",
+]
+
+[[package]]
+name = "magicblock-magic-program-api"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33377e1af186b99747a5e41ace3a0bb3c201fe17c336fe7fc02c62cfd0caec19"
 dependencies = [
  "bincode",
  "const-crypto",
@@ -4218,7 +4231,9 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
+ "bincode",
  "ephemeral-rollups-sdk",
+ "magicblock-magic-program-api 0.12.1",
 ]
 
 [[package]]

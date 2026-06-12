@@ -98,6 +98,10 @@ pub mod wick {
         instructions::er::resolve_bet(ctx, bet_idx)
     }
 
+    pub fn arm_resolution(ctx: Context<ArmResolution>, bet_idx: u8) -> Result<()> {
+        instructions::er::arm_resolution(ctx, bet_idx)
+    }
+
     // ── Settlement (ER → L1) ──────────────────────────────────────
     pub fn commit_user(ctx: Context<CommitUser>) -> Result<()> {
         instructions::er::commit_user(ctx)

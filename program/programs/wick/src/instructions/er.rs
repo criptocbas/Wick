@@ -1,6 +1,13 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
+use anchor_lang::solana_program::program::invoke;
 use ephemeral_rollups_sdk::anchor::commit;
+use ephemeral_rollups_sdk::consts::MAGIC_PROGRAM_ID;
 use ephemeral_rollups_sdk::ephem::{FoldableIntentBuilder, MagicIntentBundleBuilder};
+use magicblock_magic_program_api::args::ScheduleTaskArgs;
+use magicblock_magic_program_api::instruction::MagicBlockInstruction;
+use magicblock_magic_program_api::pda::crank_signer_pda;
+use magicblock_magic_program_api::MAGIC_CONTEXT_PUBKEY;
 
 use crate::errors::WickError;
 use crate::events::{BetPlaced, BetResolved};
@@ -24,6 +31,11 @@ pub struct PlaceBet<'info> {
     pub user_account: Account<'info, UserAccount>,
     /// CHECK: pinned to market.feed inside oracle::read_price
     pub feed: UncheckedAccount<'info>,
+    /// CHECK: the Magic program — schedules the resolution crank
+    pub magic_program: UncheckedAccount<'info>,
+    /// CHECK: the Magic context / task context account
+    #[account(mut)]
+    pub magic_context: UncheckedAccount<'info>,
 }
 
 pub fn place_bet(ctx: Context<PlaceBet>, direction: u8, stake: u64, duration_s: u32) -> Result<()> {
@@ -104,6 +116,24 @@ pub fn place_bet(ctx: Context<PlaceBet>, direction: u8, stake: u64, duration_s: 
         placed_ms: price.ts_ms,
         expiry_ms,
     });
+
+    // Atomically schedule this bet's autonomous on-chain resolution at expiry.
+    schedule_resolution(
+        &ResolutionAccounts {
+            payer: &ctx.accounts.operator.to_account_info(),
+            config: &ctx.accounts.config.to_account_info(),
+            market: &ctx.accounts.market.to_account_info(),
+            book: &ctx.accounts.book.to_account_info(),
+            house: &ctx.accounts.house.to_account_info(),
+            user_account: &ctx.accounts.user_account.to_account_info(),
+            feed: &ctx.accounts.feed.to_account_info(),
+            magic_program: &ctx.accounts.magic_program.to_account_info(),
+            magic_context: &ctx.accounts.magic_context.to_account_info(),
+        },
+        slot as u8,
+        price.ts_ms,
+        expiry_ms,
+    )?;
     Ok(())
 }
 
@@ -201,6 +231,152 @@ pub fn resolve_bet(ctx: Context<ResolveBet>, bet_idx: u8) -> Result<()> {
         settle_price: price.price,
         expo: price.expo,
     });
+    Ok(())
+}
+
+/// Schedule a one-shot MagicBlock crank that fires `resolve_bet` at the bet's
+/// expiry — settlement becomes autonomous and on-chain (no off-chain keeper),
+/// and can't be withheld/cherry-picked because the crank resolves promptly.
+#[derive(Accounts)]
+pub struct ArmResolution<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, Config>,
+    #[account(seeds = [MARKET_SEED, &[market.idx]], bump = market.bump)]
+    pub market: Account<'info, MarketConfig>,
+    #[account(mut, seeds = [BOOK_SEED, &[market.idx]], bump = book.bump)]
+    pub book: Account<'info, MarketBook>,
+    #[account(mut, seeds = [HOUSE_SEED], bump = house.bump)]
+    pub house: Account<'info, House>,
+    #[account(mut)]
+    pub user_account: Account<'info, UserAccount>,
+    /// CHECK: pinned to market.feed inside resolve_bet via oracle::read_price
+    pub feed: UncheckedAccount<'info>,
+    /// CHECK: the Magic program (schedule target)
+    pub magic_program: UncheckedAccount<'info>,
+    /// CHECK: the Magic context / task context account
+    #[account(mut)]
+    pub magic_context: UncheckedAccount<'info>,
+}
+
+pub fn arm_resolution(ctx: Context<ArmResolution>, bet_idx: u8) -> Result<()> {
+    let user = &ctx.accounts.user_account;
+    let bet = *user.bets.get(bet_idx as usize).ok_or(WickError::BetNotOpen)?;
+    require!(bet.status == BET_STATUS_OPEN, WickError::BetNotOpen);
+    require!(bet.market_idx == ctx.accounts.market.idx, WickError::MarketMismatch);
+
+    schedule_resolution(
+        &ResolutionAccounts {
+            payer: &ctx.accounts.payer.to_account_info(),
+            config: &ctx.accounts.config.to_account_info(),
+            market: &ctx.accounts.market.to_account_info(),
+            book: &ctx.accounts.book.to_account_info(),
+            house: &ctx.accounts.house.to_account_info(),
+            user_account: &ctx.accounts.user_account.to_account_info(),
+            feed: &ctx.accounts.feed.to_account_info(),
+            magic_program: &ctx.accounts.magic_program.to_account_info(),
+            magic_context: &ctx.accounts.magic_context.to_account_info(),
+        },
+        bet_idx,
+        bet.placed_ms,
+        bet.expiry_ms,
+    )
+}
+
+/// Borrowed account refs needed to schedule a bet's resolution crank.
+pub struct ResolutionAccounts<'a, 'info> {
+    pub payer: &'a AccountInfo<'info>,
+    pub config: &'a AccountInfo<'info>,
+    pub market: &'a AccountInfo<'info>,
+    pub book: &'a AccountInfo<'info>,
+    pub house: &'a AccountInfo<'info>,
+    pub user_account: &'a AccountInfo<'info>,
+    pub feed: &'a AccountInfo<'info>,
+    pub magic_program: &'a AccountInfo<'info>,
+    pub magic_context: &'a AccountInfo<'info>,
+}
+
+/// Schedules a one-shot MagicBlock crank that fires `resolve_bet(bet_idx)` at the
+/// bet's expiry. Settlement becomes autonomous and on-chain — no off-chain keeper,
+/// and it can't be withheld or cherry-picked because the crank fires promptly.
+pub fn schedule_resolution(
+    a: &ResolutionAccounts,
+    bet_idx: u8,
+    placed_ms: i64,
+    expiry_ms: i64,
+) -> Result<()> {
+    require_keys_eq!(a.magic_program.key(), MAGIC_PROGRAM_ID, WickError::InvalidFeed);
+    require_keys_eq!(a.magic_context.key(), MAGIC_CONTEXT_PUBKEY, WickError::InvalidFeed);
+
+    // The crank executor signs the scheduled call with a PDA derived from the
+    // task authority (the payer) — magic-program-api ≥ 0.12.
+    let crank_signer = crank_signer_pda(&a.payer.key());
+
+    // Delay until expiry, plus a small buffer so a post-expiry print exists.
+    let now_ms = Clock::get()?
+        .unix_timestamp
+        .checked_mul(1000)
+        .ok_or(WickError::MathOverflow)?;
+    let delay = (expiry_ms - now_ms + 400).max(400);
+
+    // The instruction the crank fires: resolve_bet, signed by the crank PDA
+    // (resolve_bet accepts any signer).
+    let resolve_ix = Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(crank_signer, true),
+            AccountMeta::new_readonly(a.config.key(), false),
+            AccountMeta::new_readonly(a.market.key(), false),
+            AccountMeta::new(a.book.key(), false),
+            AccountMeta::new(a.house.key(), false),
+            AccountMeta::new(a.user_account.key(), false),
+            AccountMeta::new_readonly(a.feed.key(), false),
+        ],
+        data: anchor_lang::InstructionData::data(&crate::instruction::ResolveBet { bet_idx }),
+    };
+
+    // Unique-enough task id (user-scoped, per bet) so concurrent bets don't collide.
+    let uid = i64::from_le_bytes(a.user_account.key().to_bytes()[0..8].try_into().unwrap());
+    let task_id = uid ^ placed_ms.wrapping_mul(16).wrapping_add(bet_idx as i64);
+
+    let args = ScheduleTaskArgs {
+        task_id,
+        execution_interval_millis: delay,
+        iterations: 1,
+        instructions: vec![resolve_ix],
+    };
+    let ix_data = bincode::serialize(&MagicBlockInstruction::ScheduleTask(args))
+        .map_err(|_| WickError::InvalidFeed)?;
+
+    let schedule_ix = Instruction::new_with_bytes(
+        MAGIC_PROGRAM_ID,
+        &ix_data,
+        vec![
+            AccountMeta::new(a.payer.key(), true),
+            AccountMeta::new(a.magic_context.key(), false),
+            AccountMeta::new_readonly(a.config.key(), false),
+            AccountMeta::new_readonly(a.market.key(), false),
+            AccountMeta::new(a.book.key(), false),
+            AccountMeta::new(a.house.key(), false),
+            AccountMeta::new(a.user_account.key(), false),
+            AccountMeta::new_readonly(a.feed.key(), false),
+        ],
+    );
+
+    invoke(
+        &schedule_ix,
+        &[
+            a.payer.clone(),
+            a.magic_context.clone(),
+            a.config.clone(),
+            a.market.clone(),
+            a.book.clone(),
+            a.house.clone(),
+            a.user_account.clone(),
+            a.feed.clone(),
+        ],
+    )?;
     Ok(())
 }
 

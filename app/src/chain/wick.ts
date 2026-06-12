@@ -15,6 +15,12 @@ import type { ChainConfig, MarketInfo } from "./config";
 export const DELEGATION_PROGRAM_ID = new PublicKey(
   "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
 );
+export const MAGIC_PROGRAM_ID2 = new PublicKey(
+  "Magic11111111111111111111111111111111111111"
+);
+export const MAGIC_CONTEXT_ID = new PublicKey(
+  "MagicContext1111111111111111111111111111111"
+);
 
 export const DIRECTION_DOWN = 0;
 export const DIRECTION_UP = 1;
@@ -362,6 +368,8 @@ export class WickClient {
         house: this.housePda,
         userAccount: this.userPda,
         feed: new PublicKey(market.feed),
+        magicProgram: MAGIC_PROGRAM_ID2,
+        magicContext: MAGIC_CONTEXT_ID,
       })
       .transaction();
     return this.sendER(tx);
