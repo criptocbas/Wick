@@ -62,7 +62,10 @@ export default function PriceStage() {
       ctx.clearRect(0, 0, w, h);
       if (pts.length < 2 || !live) return;
 
-      const tRight = live.tsMs;
+      // Anchor the window to the series tail (synthesized monotonic time), so
+      // the head always sits exactly on the end of the line.
+      const lastPt = pts[pts.length - 1];
+      const tRight = lastPt.t;
       const tLeft = tRight - WINDOW_MS;
       const plotW = w * (1 - RIGHT_PAD_FRAC);
 
@@ -165,8 +168,8 @@ export default function PriceStage() {
       ctx.stroke();
 
       // amber head with breathing halo (candlelight, restrained)
-      const hx = X(tRight);
-      const hy = Y(live.price);
+      const hx = X(lastPt.t);
+      const hy = Y(lastPt.p);
       const pulse = 1 + 0.18 * Math.sin(performance.now() / 320);
       const halo = ctx.createRadialGradient(hx, hy, 0, hx, hy, 14 * pulse);
       halo.addColorStop(0, "oklch(80% 0.14 75 / 0.32)");

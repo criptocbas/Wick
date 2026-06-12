@@ -13,16 +13,21 @@ function Strip({ bet }: { bet: Bet }) {
 
   const market = config?.markets.find((m) => m.idx === bet.marketIdx);
   const feed = market ? feeds[market.symbol] : undefined;
-  // feed time is the settlement clock; anchor it to the wall clock between updates
-  const offsetRef = useRef(0);
-  if (feed) offsetRef.current = feed.tsMs - Date.now();
+  // Feed time is the settlement clock; anchor it to the wall clock between
+  // updates. Oracle prints truncate to seconds, so keep the max offset seen —
+  // it converges on the true clock skew instead of stuttering ±1s.
+  const offsetRef = useRef<number | null>(null);
+  if (feed) {
+    const off = feed.tsMs - Date.now();
+    if (offsetRef.current === null || off > offsetRef.current) offsetRef.current = off;
+  }
 
   useEffect(() => {
     let raf = 0;
     const total = bet.expiryMs - bet.placedMs;
     const tick = () => {
       raf = requestAnimationFrame(tick);
-      const nowChain = Date.now() + offsetRef.current;
+      const nowChain = Date.now() + (offsetRef.current ?? 0);
       const remaining = Math.max(bet.expiryMs - nowChain, 0);
       const frac = Math.min(Math.max(remaining / total, 0), 1);
       if (burnRef.current) burnRef.current.style.width = `${frac * 100}%`;

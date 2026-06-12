@@ -35,7 +35,7 @@ async function main() {
     await btn.click();
     console.log("clicked Light the wick…");
     await page.waitForSelector(".shell", { timeout: 45_000 });
-    await sleep(3500); // let prices stream in
+    await sleep(Number(process.env.OBSERVE_MS ?? 3500)); // let prices stream in
   }
   await page.screenshot({ path: "/tmp/wick-2-trading.png" });
   console.log("shot: /tmp/wick-2-trading.png");

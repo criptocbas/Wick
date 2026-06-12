@@ -84,11 +84,24 @@ export const useStore = create<WickStore>((set, get) => ({
 
   pushPrice: (symbol, f) =>
     set((s) => {
+      const cur = s.feeds[symbol];
+      // Out-of-order websocket delivery: never let an older print regress state.
+      if (cur && f.tsMs < cur.tsMs) return {};
+      // Duplicate notification of the same print: refresh the readout only.
+      if (cur && f.tsMs === cur.tsMs && f.price === cur.price) {
+        return { feeds: { ...s.feeds, [symbol]: f } };
+      }
       const prev = s.series[symbol] ?? [];
       const last = prev[prev.length - 1];
-      if (last && last.t === f.tsMs) return { feeds: { ...s.feeds, [symbol]: f } };
-      const cutoff = f.tsMs - WINDOW_MS;
-      const next = [...prev.filter((pt) => pt.t >= cutoff), { t: f.tsMs, p: f.price }];
+      // Oracle publish times are second-truncated; synthesize monotonic
+      // sub-second x so every intra-second print still renders, in order.
+      let t = f.tsMs;
+      if (last) {
+        t = Math.min(Math.max(f.tsMs, last.t + 120), f.tsMs + 980);
+        if (t <= last.t) t = last.t + 1;
+      }
+      const cutoff = t - WINDOW_MS;
+      const next = [...prev.filter((pt) => pt.t >= cutoff), { t, p: f.price }];
       return {
         feeds: { ...s.feeds, [symbol]: f },
         series: { ...s.series, [symbol]: next },
