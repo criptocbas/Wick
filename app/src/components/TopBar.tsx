@@ -7,6 +7,9 @@ export default function TopBar({ onSettle }: { onSettle: () => void }) {
   const soundOn = useStore((s) => s.soundOn);
   const toggleSound = useStore((s) => s.toggleSound);
   const busy = useStore((s) => s.busy);
+  const toggleDesk = useStore((s) => s.toggleDesk);
+  const desk = useStore((s) => s.desk);
+  const hedgeCount = desk?.positions.length ?? 0;
 
   return (
     <header className="topbar">
@@ -40,6 +43,14 @@ export default function TopBar({ onSettle }: { onSettle: () => void }) {
         <div className="value num">{user ? fmtMoney(user.balance) : "—"}</div>
       </div>
 
+      <button
+        className={`btn-quiet desk-btn ${hedgeCount > 0 ? "live" : ""}`}
+        onClick={() => toggleDesk()}
+        aria-label="house risk desk"
+      >
+        Desk
+        {hedgeCount > 0 && <span className="desk-pip" />}
+      </button>
       <button className="btn-quiet" onClick={toggleSound} aria-label="toggle sound">
         {soundOn ? "Sound on" : "Muted"}
       </button>

@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { useStore } from "../state/store";
+import { marketStatusOf, useStore } from "../state/store";
 import { fmtPrice } from "../util";
 
 const CRYPTO = new Set(["SOL", "BTC", "ETH"]);
@@ -7,6 +7,7 @@ const CRYPTO = new Set(["SOL", "BTC", "ETH"]);
 export default function MarketRail() {
   const config = useStore((s) => s.config);
   const feeds = useStore((s) => s.feeds);
+  const sessions = useStore((s) => s.sessions);
   const selected = useStore((s) => s.selected);
   const select = useStore((s) => s.select);
   const lastPrices = useRef<Record<string, number>>({});
@@ -18,6 +19,7 @@ export default function MarketRail() {
 
   const row = (m: (typeof config.markets)[number]) => {
     const f = feeds[m.symbol];
+    const status = marketStatusOf(feeds, sessions, m.symbol);
     const prev = lastPrices.current[m.symbol];
     let tick = "";
     if (f && prev !== undefined && f.price !== prev)
@@ -27,13 +29,19 @@ export default function MarketRail() {
     return (
       <button
         key={m.idx}
-        className={`market-row ${m.idx === selected ? "active" : ""}`}
+        className={`market-row ${m.idx === selected ? "active" : ""} ${
+          status.closed ? "closed" : ""
+        }`}
         onClick={() => select(m.idx)}
       >
         <span className="sym">{m.symbol}</span>
-        <span className={`px num ${tick}`}>
-          {f ? fmtPrice(f.price, m.display) : "·"}
-        </span>
+        {status.closed ? (
+          <span className="px closed-tag">{status.reason}</span>
+        ) : (
+          <span className={`px num ${tick}`}>
+            {f ? fmtPrice(f.price, m.display) : "·"}
+          </span>
+        )}
       </button>
     );
   };

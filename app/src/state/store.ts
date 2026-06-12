@@ -21,6 +21,43 @@ export interface Toast {
   kind: "info" | "err";
 }
 
+export interface MarketSession {
+  symbol: string;
+  session: string; // "regular" | "preMarket" | "postMarket" | "overNight" | "closed" | …
+  trading: boolean;
+}
+
+export interface DeskExposure {
+  symbol: string;
+  longUsd: number;
+  shortUsd: number;
+  netUsd: number;
+}
+
+export interface DeskPosition {
+  market: string;
+  side: "LONG" | "SHORT";
+  sizeUsd: number;
+  entryUi: string | null;
+  pnlUsd: string | null;
+  key: string | null;
+}
+
+export interface DeskState {
+  hedger: string | null;
+  exposure: DeskExposure[];
+  positions: DeskPosition[];
+}
+
+/** A friendly label for a non-trading session. */
+export function sessionLabel(session: string): string {
+  const s = session.toLowerCase();
+  if (s === "closed" || s === "") return "Closed";
+  if (s.includes("weekend")) return "Weekend";
+  if (s.includes("holiday")) return "Holiday";
+  return "Closed";
+}
+
 interface WickStore {
   phase: "boot" | "onboard" | "ready" | "error";
   bootError: string | null;
@@ -41,6 +78,10 @@ interface WickStore {
   toasts: Toast[];
   busy: boolean;
 
+  sessions: Record<string, MarketSession>;
+  desk: DeskState | null;
+  deskOpen: boolean;
+
   setPhase(p: WickStore["phase"], err?: string): void;
   setClient(c: WickClient, cfg: ChainConfig): void;
   pushPrice(symbol: string, f: FeedState): void;
@@ -57,9 +98,15 @@ interface WickStore {
   toast(text: string, kind?: Toast["kind"]): void;
   dropToast(id: string): void;
   setBusy(b: boolean): void;
+  setSessions(s: MarketSession[]): void;
+  setDesk(d: DeskState | null): void;
+  toggleDesk(open?: boolean): void;
 }
 
 const WINDOW_MS = 95_000;
+/** A market whose feed lags the freshest feed by more than this is treated as
+ *  closed/stale — mirrors the program's on-chain max_feed_age guard (10s). */
+const STALE_MS = 13_000;
 
 export const useStore = create<WickStore>((set, get) => ({
   phase: "boot",
@@ -78,6 +125,9 @@ export const useStore = create<WickStore>((set, get) => ({
   soundOn: localStorage.getItem("wick:sound") !== "off",
   toasts: [],
   busy: false,
+  sessions: {},
+  desk: null,
+  deskOpen: false,
 
   setPhase: (phase, err) => set({ phase, bootError: err ?? null }),
   setClient: (client, config) => set({ client, config }),
@@ -133,6 +183,10 @@ export const useStore = create<WickStore>((set, get) => ({
   },
   dropToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   setBusy: (busy) => set({ busy }),
+  setSessions: (list) =>
+    set({ sessions: Object.fromEntries(list.map((s) => [s.symbol, s])) }),
+  setDesk: (desk) => set({ desk }),
+  toggleDesk: (open) => set((s) => ({ deskOpen: open ?? !s.deskOpen })),
 }));
 
 export function openBets(user: UserState | null): Bet[] {
@@ -141,4 +195,36 @@ export function openBets(user: UserState | null): Bet[] {
 
 export function marketBySymbol(cfg: ChainConfig | null, idx: number): MarketInfo | null {
   return cfg?.markets.find((m) => m.idx === idx) ?? null;
+}
+
+/** The freshest feed timestamp across all markets — the always-live crypto feeds
+ *  give us an effective chain clock without trusting the browser's wall clock. */
+export function freshestTs(feeds: Record<string, FeedState>): number {
+  let max = 0;
+  for (const f of Object.values(feeds)) if (f.tsMs > max) max = f.tsMs;
+  return max;
+}
+
+export interface MarketStatus {
+  closed: boolean;
+  reason: string | null; // friendly label when closed
+}
+
+/** A market is closed if its session says so OR its feed has gone stale relative
+ *  to the freshest feed (mirrors the program's on-chain max-feed-age guard).
+ *  Pure: pass the store maps so React components re-derive on change. */
+export function marketStatusOf(
+  feeds: Record<string, FeedState>,
+  sessions: Record<string, MarketSession>,
+  symbol: string
+): MarketStatus {
+  const feed = feeds[symbol];
+  const session = sessions[symbol];
+  if (session && !session.trading) {
+    return { closed: true, reason: sessionLabel(session.session) };
+  }
+  if (feed && freshestTs(feeds) - feed.tsMs > STALE_MS) {
+    return { closed: true, reason: session ? sessionLabel(session.session) : "Closed" };
+  }
+  return { closed: false, reason: null };
 }

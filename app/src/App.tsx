@@ -10,6 +10,7 @@ import PriceStage from "./components/PriceStage";
 import TradeControls from "./components/TradeControls";
 import Onboarding from "./components/Onboarding";
 import Toasts from "./components/Toasts";
+import HouseDesk from "./components/HouseDesk";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -49,6 +50,35 @@ export default function App() {
     return () => {
       const c = useStore.getState().client;
       for (const id of subsRef.current) void c?.er.removeAccountChangeListener(id);
+    };
+  }, []);
+
+  // ── poll market sessions + the house desk from the daemon ─────
+  useEffect(() => {
+    const st = useStore.getState();
+    const daemon = st.config?.daemon;
+    let alive = true;
+    const poll = async () => {
+      const cfg = useStore.getState().config;
+      const base = cfg?.daemon ?? daemon;
+      if (!base) return;
+      try {
+        const [mk, desk] = await Promise.all([
+          fetch(`${base}/markets`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)),
+          fetch(`${base}/desk`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)),
+        ]);
+        if (!alive) return;
+        if (Array.isArray(mk)) useStore.getState().setSessions(mk);
+        if (desk && Array.isArray(desk.exposure)) useStore.getState().setDesk(desk);
+      } catch {
+        /* daemon may be briefly unavailable */
+      }
+    };
+    void poll();
+    const iv = setInterval(poll, 2500);
+    return () => {
+      alive = false;
+      clearInterval(iv);
     };
   }, []);
 
@@ -162,6 +192,7 @@ export default function App() {
       <MarketRail />
       <PriceStage />
       <TradeControls />
+      <HouseDesk />
       <Toasts />
     </div>
   );

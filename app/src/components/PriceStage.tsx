@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useStore, openBets } from "../state/store";
+import { marketStatusOf, useStore, openBets } from "../state/store";
 import { applyExpo, splitPrice } from "../util";
 import { DIRECTION_UP } from "../chain/wick";
 import { WickStrips } from "./WickStrip";
@@ -192,16 +192,29 @@ export default function PriceStage() {
   }, []);
 
   const [int, frac] = feed ? splitPrice(feed.price, market?.display ?? 2) : ["—", ""];
+  const sessions = useStore((s) => s.sessions);
+  const feeds = useStore((s) => s.feeds);
+  const status = market
+    ? marketStatusOf(feeds, sessions, market.symbol)
+    : { closed: false, reason: null };
 
   return (
     <section className="stage" aria-label="price chart">
       <canvas ref={canvasRef} />
       <div className="stage-readout">
-        <div className="sym">{market?.symbol ?? ""} / USD</div>
-        <div className="price num">
+        <div className="sym">
+          {market?.symbol ?? ""} / USD
+          {status.closed && <span className="readout-closed">· {status.reason}</span>}
+        </div>
+        <div className={`price num ${status.closed ? "dim" : ""}`}>
           {int}
           <span className="frac">{frac}</span>
         </div>
+        {status.closed && (
+          <div className="readout-closed-sub">
+            last price before the {market?.symbol} market closed
+          </div>
+        )}
       </div>
       <WickStrips />
       <VerdictOverlay />

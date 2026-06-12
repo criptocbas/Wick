@@ -1,4 +1,4 @@
-import { useStore } from "../state/store";
+import { marketStatusOf, useStore } from "../state/store";
 import { toUnits } from "../chain/config";
 import { DIRECTION_DOWN, DIRECTION_UP } from "../chain/wick";
 import { sIgnite } from "../sounds";
@@ -17,12 +17,22 @@ export default function TradeControls() {
   const client = useStore((s) => s.client);
   const user = useStore((s) => s.user);
   const soundOn = useStore((s) => s.soundOn);
+  const feeds = useStore((s) => s.feeds);
+  const sessions = useStore((s) => s.sessions);
   const { addPending, removePending, setLatency, toast } = useStore.getState();
 
   const market = config?.markets.find((m) => m.idx === selected);
   const stakeUnits = toUnits(stake);
+  const status = market
+    ? marketStatusOf(feeds, sessions, market.symbol)
+    : { closed: false, reason: null };
   const canTrade =
-    !!client && !!market && !!user && user.balance >= stakeUnits && user.openBets < 8;
+    !!client &&
+    !!market &&
+    !!user &&
+    !status.closed &&
+    user.balance >= stakeUnits &&
+    user.openBets < 8;
 
   const fire = async (direction: number) => {
     if (!client || !market) return;
@@ -76,6 +86,13 @@ export default function TradeControls() {
       </div>
 
       <div className="controls-spacer" />
+
+      {status.closed && (
+        <div className="closed-note">
+          {market?.symbol} market is <strong>{status.reason?.toLowerCase()}</strong>
+          <span>opens when the venue reopens</span>
+        </div>
+      )}
 
       <button
         className="dir-btn short"
