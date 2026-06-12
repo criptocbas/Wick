@@ -272,6 +272,33 @@ async function deskState() {
   return { hedger: HEDGER_PUBKEY, exposure, positions };
 }
 
+/** Top players by streak/PnL, read from on-chain UserAccounts. */
+let lbCache: { at: number; rows: any[] } = { at: 0, rows: [] };
+async function leaderboard() {
+  // cache for 5s — getProgramAccounts is heavy on public RPC
+  if (Date.now() - lbCache.at < 5000) return lbCache.rows;
+  const all: any[] = await (ctx.program.account as any).userAccount.all();
+  const rows = all
+    .map((a) => {
+      const u = a.account;
+      return {
+        wallet: u.authority.toBase58(),
+        wins: u.wins,
+        losses: u.losses,
+        pushes: u.pushes,
+        streak: u.streak,
+        bestStreak: u.bestStreak,
+        pnlUsd: u.pnl.toNumber() / 1e6,
+        volumeUsd: u.totalWagered.toNumber() / 1e6,
+      };
+    })
+    .filter((r) => r.wins + r.losses > 0)
+    .sort((a, b) => b.bestStreak - a.bestStreak || b.pnlUsd - a.pnlUsd)
+    .slice(0, 20);
+  lbCache = { at: Date.now(), rows };
+  return rows;
+}
+
 const server = http.createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -294,6 +321,14 @@ const server = http.createServer(async (req, res) => {
       return json(200, await deskState());
     } catch (e) {
       return json(500, { error: e instanceof Error ? e.message : "desk read failed" });
+    }
+  }
+
+  if (req.method === "GET" && req.url === "/leaderboard") {
+    try {
+      return json(200, await leaderboard());
+    } catch (e) {
+      return json(500, { error: e instanceof Error ? e.message : "leaderboard read failed" });
     }
   }
 

@@ -49,6 +49,17 @@ export interface DeskState {
   positions: DeskPosition[];
 }
 
+export interface LeaderRow {
+  wallet: string;
+  wins: number;
+  losses: number;
+  pushes: number;
+  streak: number;
+  bestStreak: number;
+  pnlUsd: number;
+  volumeUsd: number;
+}
+
 /** A friendly label for a non-trading session. */
 export function sessionLabel(session: string): string {
   const s = session.toLowerCase();
@@ -83,6 +94,8 @@ interface WickStore {
   deskOpen: boolean;
   duelOpen: boolean;
   trustOpen: boolean;
+  boardOpen: boolean;
+  board: LeaderRow[];
 
   setPhase(p: WickStore["phase"], err?: string): void;
   setClient(c: WickClient, cfg: ChainConfig): void;
@@ -105,6 +118,8 @@ interface WickStore {
   toggleDesk(open?: boolean): void;
   toggleDuel(open?: boolean): void;
   toggleTrust(open?: boolean): void;
+  toggleBoard(open?: boolean): void;
+  setBoard(rows: LeaderRow[]): void;
 }
 
 const WINDOW_MS = 95_000;
@@ -134,6 +149,8 @@ export const useStore = create<WickStore>((set, get) => ({
   deskOpen: false,
   duelOpen: false,
   trustOpen: false,
+  boardOpen: false,
+  board: [],
 
   setPhase: (phase, err) => set({ phase, bootError: err ?? null }),
   setClient: (client, config) => set({ client, config }),
@@ -195,6 +212,8 @@ export const useStore = create<WickStore>((set, get) => ({
   toggleDesk: (open) => set((s) => ({ deskOpen: open ?? !s.deskOpen })),
   toggleDuel: (open) => set((s) => ({ duelOpen: open ?? !s.duelOpen })),
   toggleTrust: (open) => set((s) => ({ trustOpen: open ?? !s.trustOpen })),
+  toggleBoard: (open) => set((s) => ({ boardOpen: open ?? !s.boardOpen })),
+  setBoard: (board) => set({ board }),
 }));
 
 export function openBets(user: UserState | null): Bet[] {

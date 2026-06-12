@@ -13,6 +13,7 @@ import Toasts from "./components/Toasts";
 import HouseDesk from "./components/HouseDesk";
 import LatencyDuel from "./components/LatencyDuel";
 import TrustPanel from "./components/TrustPanel";
+import Leaderboard from "./components/Leaderboard";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -74,6 +75,13 @@ export default function App() {
         if (!alive) return;
         if (Array.isArray(mk)) useStore.getState().setSessions(mk);
         if (desk && Array.isArray(desk.exposure)) useStore.getState().setDesk(desk);
+        // leaderboard is best-effort (getProgramAccounts can be RPC-throttled)
+        fetch(`${base}/leaderboard`, { cache: "no-store" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((rows) => {
+            if (alive && Array.isArray(rows)) useStore.getState().setBoard(rows);
+          })
+          .catch(() => {});
       } catch {
         /* daemon may be briefly unavailable */
       }
@@ -212,6 +220,7 @@ export default function App() {
       <HouseDesk />
       <LatencyDuel />
       <TrustPanel />
+      <Leaderboard />
       <Toasts />
     </div>
   );

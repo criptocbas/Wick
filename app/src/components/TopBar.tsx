@@ -10,6 +10,7 @@ export default function TopBar({ onSettle }: { onSettle: () => void }) {
   const toggleDesk = useStore((s) => s.toggleDesk);
   const toggleDuel = useStore((s) => s.toggleDuel);
   const toggleTrust = useStore((s) => s.toggleTrust);
+  const toggleBoard = useStore((s) => s.toggleBoard);
   const desk = useStore((s) => s.desk);
   const hedgeCount = desk?.positions.length ?? 0;
 
@@ -44,14 +45,20 @@ export default function TopBar({ onSettle }: { onSettle: () => void }) {
 
       <div className="topbar-spacer" />
 
-      {user && user.streak > 1 && (
-        <div className="streak" title={`${user.streak} wins in a row`}>
-          <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden>
-            <path d="M16 3c1 5-7 9-7 16a7 7 0 0 0 14 0c0-3-1.5-5-2.5-7-1.6 2-2.5 2.4-2.5 2.4S20 8 16 3z" />
-          </svg>
+      <button
+        className="streak streak-btn"
+        onClick={() => toggleBoard()}
+        title="your record & the streak leaderboard"
+      >
+        <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden>
+          <path d="M16 3c1 5-7 9-7 16a7 7 0 0 0 14 0c0-3-1.5-5-2.5-7-1.6 2-2.5 2.4-2.5 2.4S20 8 16 3z" />
+        </svg>
+        {user && user.streak > 1 ? (
           <span className="num">{user.streak}</span>
-        </div>
-      )}
+        ) : (
+          <span className="streak-label">Streaks</span>
+        )}
+      </button>
 
       <div className="balance-block">
         <div className="label">balance</div>
