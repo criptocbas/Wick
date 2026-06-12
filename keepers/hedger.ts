@@ -11,14 +11,16 @@
  *   npm run hedger                    poll + hedge (DRY_RUN=1 by default: log only)
  *   DRY_RUN=0 npm run hedger          ARMED — signs + sends real mainnet txs
  *   npm run hedger -- preview         one $11 SOL preview quote (no owner, no spend)
- *   npm run hedger -- flatten         close every open hedge position, then exit
+ *   npm run hedger -- flatten         close every open hedge position, reclaim rent
+ *   npm run hedger -- reclaim         close empty token accounts, reclaim their rent
+ *   npm run hedger -- recover [usd]   pull deposited collateral out of Flash V2 ($25)
  *
  * Guardrails (all enforced before any transaction is built)
  *   MAX_HEDGE_USD          hard cap on TOTAL absolute hedge notional   (default 30)
  *   MAX_MARKET_HEDGE_USD   hard cap per market                         (default 15)
  *   MIN_ADJUST_USD         hysteresis: ignore deltas smaller than this (default 12)
  *   COOLDOWN_MS            min time between adjustments per market     (default 20s)
- *   auto-flatten on SIGINT/SIGTERM when armed
+ *   auto-flatten on SIGINT/SIGTERM when armed; periodic rent reclaim while armed
  *
  * env: HEDGER_KEYPAIR (default ~/.config/solana/wick-hedger.json), MAINNET_RPC,
  *      HEDGE_RATIO (0.9), LEVERAGE (2), POLL_MS (3000), FLASH_API.
@@ -26,10 +28,20 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { Connection, Keypair, PublicKey, VersionedTransaction } from "@solana/web3.js";
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+  Transaction,
+  VersionedTransaction,
+} from "@solana/web3.js";
+import {
+  TOKEN_PROGRAM_ID,
+  createCloseAccountInstruction,
+} from "@solana/spl-token";
 import { MARKETS, makeCtx, pdas } from "./common";
 
-const MODE = (process.argv[2] ?? "hedge") as "hedge" | "preview" | "flatten";
+const MODE = (process.argv[2] ?? "hedge") as "hedge" | "preview" | "flatten" | "recover" | "reclaim";
 const DRY_RUN = MODE === "hedge" ? process.env.DRY_RUN !== "0" : false;
 
 const FLASH_API = process.env.FLASH_API ?? "https://flashapi.trade";
@@ -52,6 +64,8 @@ const MAX_HEDGE_USD = Number(process.env.MAX_HEDGE_USD ?? 30);
 const MAX_MARKET_HEDGE_USD = Number(process.env.MAX_MARKET_HEDGE_USD ?? 15);
 const MIN_ADJUST_USD = Number(process.env.MIN_ADJUST_USD ?? 12);
 const COOLDOWN_MS = Number(process.env.COOLDOWN_MS ?? 20_000);
+/** Sweep empty-account rent every N ticks while armed (~POLL_MS × N). */
+const RECLAIM_EVERY_TICKS = Number(process.env.RECLAIM_EVERY_TICKS ?? 40);
 /** Flash minimum collateral is $10; keep a buffer above it. */
 const MIN_TICKET_USD = 11;
 
@@ -195,6 +209,74 @@ async function walletUsdc(): Promise<number> {
   );
 }
 
+/**
+ * Reclaim rent from EMPTY token accounts the wallet accumulates — Flash routes
+ * collateral through transient JitoSOL/WSOL ATAs that linger at zero balance,
+ * each locking ~0.002 SOL. Closing them returns that SOL. Never touches an
+ * account with a non-zero balance. Returns the number of accounts closed.
+ */
+async function reclaimRent(): Promise<number> {
+  const res = await mainnet.getParsedTokenAccountsByOwner(hedger.publicKey, {
+    programId: TOKEN_PROGRAM_ID,
+  });
+  const empty = res.value.filter(
+    (a) => (a.account.data.parsed.info.tokenAmount.uiAmount ?? 0) === 0
+  );
+  if (empty.length === 0) return 0;
+  // batch up to ~20 closes per tx to stay within size limits
+  for (let i = 0; i < empty.length; i += 20) {
+    const tx = new Transaction();
+    for (const a of empty.slice(i, i + 20)) {
+      tx.add(createCloseAccountInstruction(a.pubkey, hedger.publicKey, hedger.publicKey));
+    }
+    tx.feePayer = hedger.publicKey;
+    const { blockhash, lastValidBlockHeight } = await mainnet.getLatestBlockhash("confirmed");
+    tx.recentBlockhash = blockhash;
+    tx.sign(hedger);
+    const sig = await mainnet.sendRawTransaction(tx.serialize(), { skipPreflight: false });
+    await mainnet.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+  }
+  log(`reclaimed rent from ${empty.length} empty token account(s)`);
+  return empty.length;
+}
+
+/** Recover deposited collateral from Flash's V2 deposit ledger back to the wallet. */
+async function recoverV2(amountArg?: string): Promise<void> {
+  const amount = amountArg ?? "25.0";
+  await reclaimRent(); // free up SOL for the escrow rent the withdrawal needs
+  log(`recovering $${amount} USDC from the Flash V2 deposit ledger…`);
+  const before = await walletUsdc();
+  try {
+    await buildSignSend("/v2/transaction-builder/request-withdrawal", {
+      owner: OWNER,
+      tokenMint: USDC_MINT,
+      amount,
+      includeCustodySettlement: true,
+    });
+  } catch (e) {
+    log("request-withdrawal failed:", e instanceof Error ? e.message.slice(0, 220) : e);
+    log("if this is 'insufficient lamports', top up ~0.02 SOL and re-run `recover`.");
+    return;
+  }
+  for (let i = 0; i < 12; i++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    const bal = await walletUsdc();
+    log(`  wallet: $${bal.toFixed(2)} USDC`);
+    if (bal > before + Number(amount) - 1) {
+      log("recovered ✓");
+      await reclaimRent(); // close the now-empty settlement escrow ATA
+      return;
+    }
+  }
+  log("not yet credited — trying execute-withdrawal to finish the escrow…");
+  await buildSignSend("/v2/transaction-builder/execute-withdrawal", {
+    owner: OWNER,
+    tokenMint: USDC_MINT,
+    amount,
+  });
+  await reclaimRent();
+}
+
 // ── hedging core ──────────────────────────────────────────────
 
 const lastAdjust: Record<string, number> = {};
@@ -311,6 +393,12 @@ async function tick(): Promise<void> {
         .join(" ");
       log(`heartbeat — desk { ${desk || "flat"} } | ${DRY_RUN ? "DRY RUN" : "ARMED"}`);
     }
+    // periodically sweep rent from the empty ATAs Flash's custody routing leaves behind
+    if (!DRY_RUN && ticks % RECLAIM_EVERY_TICKS === 0) {
+      await reclaimRent().catch((e) =>
+        log("rent reclaim failed:", e instanceof Error ? e.message.slice(0, 120) : e)
+      );
+    }
   } catch (e) {
     log("tick failed:", e instanceof Error ? e.message.slice(0, 180) : e);
   } finally {
@@ -362,7 +450,17 @@ async function main(): Promise<void> {
   );
 
   if (MODE === "preview") return preview();
-  if (MODE === "flatten") return flattenAll();
+  if (MODE === "flatten") {
+    await flattenAll();
+    await reclaimRent();
+    return;
+  }
+  if (MODE === "reclaim") {
+    const n = await reclaimRent();
+    if (n === 0) log("no empty token accounts to reclaim");
+    return;
+  }
+  if (MODE === "recover") return recoverV2(process.argv[3]);
 
   const usdc = await walletUsdc().catch(() => NaN);
   log(`wallet: $${isFinite(usdc) ? usdc.toFixed(2) : "?"} USDC on mainnet (V1 pays collateral per position)`);
