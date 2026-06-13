@@ -36,3 +36,10 @@ export function loadBurner(): Keypair {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(kp.secretKey)));
   return kp;
 }
+
+/** Discard the current burner and reload with a fresh one — the escape hatch if
+ *  a burner ends up wedged (e.g. partially onboarded against an old program/mint). */
+export function resetBurner(): void {
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload();
+}

@@ -346,6 +346,13 @@ export class WickClient {
     return res?.value.uiAmount ?? 0;
   }
 
+  /** Burner's wUSDC balance in raw token units (so we never deposit more than
+   *  the account actually holds and trip an SPL InsufficientFunds). */
+  async tokenBalanceUnits(): Promise<number> {
+    const res = await this.base.getTokenAccountBalance(this.ata).catch(() => null);
+    return res ? Number(res.value.amount) : 0;
+  }
+
   /** Poll until the faucet's wUSDC has actually landed before depositing. */
   async waitForFunding(timeoutMs = 20_000): Promise<boolean> {
     const t0 = performance.now();

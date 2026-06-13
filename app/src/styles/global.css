@@ -784,6 +784,17 @@ input:focus-visible {
   text-align: center;
 }
 
+.reset-burner {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.14s;
+}
+.reset-burner:hover { color: var(--ink-dim); }
+.reset-burner:disabled { opacity: 0.5; cursor: wait; }
+
 .onboard .error {
   margin-top: 14px;
   font-size: 13px;

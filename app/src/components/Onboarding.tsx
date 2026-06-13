@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../state/store";
 import { toUnits } from "../chain/config";
+import { resetBurner } from "../chain/wallet";
 
 type StepId = "fund" | "open" | "deposit" | "delegate";
 
@@ -47,17 +48,21 @@ export default function Onboarding({ onReady }: { onReady: () => Promise<void> }
       const mark = (id: StepId) => setDone((d) => new Set(d).add(id));
 
       setNow("fund");
-      if ((await client.tokenBalance()) < 1) {
+      // Top up unless the burner already holds a usable balance. A returning
+      // burner may have an empty/partial token account under the current mint.
+      if ((await client.tokenBalance()) < 100) {
         const res = await fetch(`${config.daemon}/faucet`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ wallet: client.wallet.publicKey.toBase58() }),
         });
-        if (!res.ok) throw new Error(`faucet: ${await res.text()}`);
-        // wait for the wUSDC to actually land before depositing
-        if (!(await client.waitForFunding())) {
-          throw new Error("faucet funds did not arrive — try again");
+        if (res.ok) {
+          await client.waitForFunding();
+        } else if ((await client.tokenBalance()) < 1) {
+          // faucet refused (e.g. per-wallet cooldown) AND we have nothing to trade
+          throw new Error(`faucet: ${(await res.text()).slice(0, 90)}`);
         }
+        // else: faucet refused but the burner already has some balance — proceed
       }
       mark("fund");
 
@@ -72,9 +77,16 @@ export default function Onboarding({ onReady }: { onReady: () => Promise<void> }
       mark("open");
 
       setNow("deposit");
-      // deposit unless the account is already funded (idempotent re-runs)
+      // deposit unless the account is already funded (idempotent re-runs). Deposit
+      // exactly what the wallet holds (capped) so a partial balance can never fail
+      // the SPL transfer with InsufficientFunds.
       if (!user || user.balance < toUnits(1)) {
-        await client.deposit(toUnits(1000));
+        const have = await client.tokenBalanceUnits();
+        const amount = Math.min(have, toUnits(1000));
+        if (amount <= 0) {
+          throw new Error('wallet has no wUSDC — tap "start fresh" below');
+        }
+        await client.deposit(amount);
       }
       mark("deposit");
 
@@ -143,9 +155,14 @@ export default function Onboarding({ onReady }: { onReady: () => Promise<void> }
           Provably fair — why your money is safe ↗
         </button>
         {error && (
-          <p className="error">
-            Couldn't finish setup — {error}. Tap “Light the wick” to retry.
-          </p>
+          <>
+            <p className="error">
+              Couldn't finish setup — {error}. Tap “Light the wick” to retry.
+            </p>
+            <button className="reset-burner" onClick={resetBurner} disabled={running}>
+              …or start fresh with a new burner wallet
+            </button>
+          </>
         )}
       </div>
     </div>
