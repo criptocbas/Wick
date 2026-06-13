@@ -686,30 +686,10 @@ input:focus-visible {
 
 /* ── onboarding takeover ────────────────────────────────────── */
 
-/* the live product, dimmed, behind the onboarding card */
-.onboard-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: grid;
-  grid-template-columns: var(--rail-w) 1fr;
-  opacity: 0.42;
-  filter: saturate(0.85);
-  pointer-events: none;
-  user-select: none;
-}
-.onboard-backdrop .rail { border-right-color: transparent; }
-
 .onboard {
   position: fixed;
   inset: 0;
-  /* a soft vignette instead of a flat fill, so the live tape breathes around
-     the card while the text stays crisp */
-  background: radial-gradient(
-    ellipse 70% 60% at 50% 45%,
-    oklch(16.5% 0.012 55 / 0.78),
-    oklch(13.5% 0.01 52 / 0.95) 75%
-  );
+  background: var(--bg);
   display: grid;
   place-items: center;
   z-index: 50;

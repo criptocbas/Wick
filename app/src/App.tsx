@@ -311,12 +311,6 @@ export default function App() {
   if (phase === "onboard") {
     return (
       <>
-        {/* the live product, dimmed behind the card — feeds are already
-            streaming from boot, so the very first paint proves it's real */}
-        <div className="onboard-backdrop" aria-hidden>
-          <MarketRail />
-          <PriceStage />
-        </div>
         <Onboarding onReady={enterReady} />
         <TrustPanel />
         <Toasts />
