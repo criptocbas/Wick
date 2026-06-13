@@ -505,8 +505,11 @@ async function deskState() {
  *  letting the live session state win. */
 let lbCache: { at: number; rows: any[] } = { at: 0, rows: [] };
 async function leaderboard() {
-  // cache for 5s — getProgramAccounts is heavy on public RPC
-  if (Date.now() - lbCache.at < 5000) return lbCache.rows;
+  // getProgramAccounts is the daemon's one heavy, continuous L1 call — cache it
+  // generously so a Helius free tier isn't drained while a tab sits open. The
+  // settled-user leaderboard barely changes; the ER (live) side is what moves.
+  const LB_CACHE_MS = Number(process.env.LB_CACHE_MS ?? 15_000);
+  if (Date.now() - lbCache.at < LB_CACHE_MS) return lbCache.rows;
   const [l1, er] = await Promise.all([
     (ctx.program.account as any).userAccount.all().catch(() => [] as any[]),
     ctx.er
